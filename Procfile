@@ -1,1 +1,1 @@
-web: python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn config.wsgi --bind 0.0.0.0:$PORT --workers 3
+web: python manage.py migrate --noinput && python manage.py collectstatic --noinput && (python manage.py apply_seed_policy --mode 2 || echo "seed skipped") && gunicorn config.wsgi --bind 0.0.0.0:$PORT --workers 3
