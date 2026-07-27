@@ -9,6 +9,7 @@ Pillow
 django-imagekit
 phonenumbers
 whitenoise
+gunicorn
 psycopg[binary]
 pytest-django
 factory_boy
