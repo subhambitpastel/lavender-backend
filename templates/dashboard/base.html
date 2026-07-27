@@ -1,0 +1,115 @@
+{% load static humanize dashboard_extras %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    /* Apply the saved theme before first paint (no flash), and wire the switch
+       via delegation so it works no matter when the button renders. */
+    (function () {
+      var KEY = "lh_dash_theme";
+      var saved;
+      try { saved = localStorage.getItem(KEY); } catch (e) {}
+      var theme = saved === "dark" || saved === "light" ? saved : "light";
+      document.documentElement.setAttribute("data-theme", theme);
+      function sync(t) {
+        document.querySelectorAll("[data-theme-toggle]").forEach(function (b) {
+          b.setAttribute("aria-checked", String(t === "dark"));
+        });
+      }
+      document.addEventListener("click", function (e) {
+        var btn = e.target.closest && e.target.closest("[data-theme-toggle]");
+        if (!btn) return;
+        var cur = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+        var next = cur === "dark" ? "light" : "dark";
+        document.documentElement.setAttribute("data-theme", next);
+        try { localStorage.setItem(KEY, next); } catch (e) {}
+        sync(next);
+      });
+      document.addEventListener("DOMContentLoaded", function () { sync(theme); });
+    })();
+  </script>
+  <title>{{ page_title|default:"Dashboard" }} · Lavender Hill</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static_v 'dashboard/dashboard.css' %}">
+  <script src="https://unpkg.com/htmx.org@1.9.12/dist/htmx.min.js"></script>
+  <script src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js" defer></script>
+  <script src="{% static_v 'dashboard/dashboard.js' %}" defer></script>
+</head>
+<body class="app">
+<aside class="sidebar">
+  <a class="brand" href="{% url 'dashboard:home' %}">
+    <span class="brand__mark">LH</span>
+    <span class="brand__name">Lavender Hill</span>
+  </a>
+
+  <nav class="nav">
+    <p class="nav__label">Overview</p>
+    <a class="nav__link {% if request.resolver_match.url_name == 'home' %}is-active{% endif %}" href="{% url 'dashboard:home' %}">Dashboard</a>
+
+    <p class="nav__label">Catalogue</p>
+    <a class="nav__link {% if 'product' in request.resolver_match.url_name %}is-active{% endif %}" href="{% url 'dashboard:product_list' %}">Products</a>
+    <a class="nav__link {% if 'inventory' in request.resolver_match.url_name %}is-active{% endif %}" href="{% url 'dashboard:inventory' %}">Inventory</a>
+    <a class="nav__link {% if 'category' in request.resolver_match.url_name %}is-active{% endif %}" href="{% url 'dashboard:category_list' %}">Categories</a>
+    <a class="nav__link {% if 'collection' in request.resolver_match.url_name %}is-active{% endif %}" href="{% url 'dashboard:collection_list' %}">Collections</a>
+    <a class="nav__link {% if 'fabric' in request.resolver_match.url_name %}is-active{% endif %}" href="{% url 'dashboard:fabric_list' %}">Fabrics</a>
+    <a class="nav__link {% if 'size' in request.resolver_match.url_name %}is-active{% endif %}" href="{% url 'dashboard:size_list' %}">Sizes</a>
+
+    <p class="nav__label">Selling</p>
+    <a class="nav__link {% if 'order' in request.resolver_match.url_name %}is-active{% endif %}" href="{% url 'dashboard:order_list' %}">
+      Orders {% if nav_pending_orders %}<span class="pill">{{ nav_pending_orders }}</span>{% endif %}
+    </a>
+    <a class="nav__link {% if 'return' in request.resolver_match.url_name %}is-active{% endif %}" href="{% url 'dashboard:return_list' %}">
+      Returns {% if nav_pending_returns %}<span class="pill">{{ nav_pending_returns }}</span>{% endif %}
+    </a>
+    <a class="nav__link {% if 'customer' in request.resolver_match.url_name %}is-active{% endif %}" href="{% url 'dashboard:customer_list' %}">Customers</a>
+    <a class="nav__link {% if 'discount' in request.resolver_match.url_name %}is-active{% endif %}" href="{% url 'dashboard:discount_list' %}">Discounts</a>
+    <a class="nav__link {% if 'review' in request.resolver_match.url_name %}is-active{% endif %}" href="{% url 'dashboard:review_list' %}">
+      Reviews {% if nav_pending_reviews %}<span class="pill">{{ nav_pending_reviews }}</span>{% endif %}
+    </a>
+
+    <p class="nav__label">Content</p>
+    <a class="nav__link {% if 'journal' in request.resolver_match.url_name %}is-active{% endif %}" href="{% url 'dashboard:journal_list' %}">Journal</a>
+    <a class="nav__link {% if 'content' in request.resolver_match.url_name or 'home_section' in request.resolver_match.url_name %}is-active{% endif %}" href="{% url 'dashboard:content_settings' %}">Site &amp; homepage</a>
+    <a class="nav__link {% if 'newsletter' in request.resolver_match.url_name %}is-active{% endif %}" href="{% url 'dashboard:newsletter_list' %}">Newsletter</a>
+  </nav>
+
+  <div class="sidebar__foot">
+    <p class="sidebar__user">{{ request.user.full_name }}</p>
+    <a class="sidebar__signout" href="{% url 'dashboard:logout' %}">Sign out</a>
+  </div>
+</aside>
+
+<main class="main">
+  <header class="topbar">
+    <div>
+      <p class="topbar__eyebrow">{% block eyebrow %}Lavender Hill Clothing{% endblock %}</p>
+      <h1 class="topbar__title">{{ page_title|default:"Dashboard" }}</h1>
+    </div>
+    <div class="topbar__right">
+      <button type="button" class="switch" data-theme-toggle role="switch" aria-checked="false"
+              aria-label="Toggle dark mode" title="Switch light / dark mode">
+        <span class="switch__ico switch__ico--sun" aria-hidden="true">☀</span>
+        <span class="switch__track"><span class="switch__thumb"></span></span>
+        <span class="switch__ico switch__ico--moon" aria-hidden="true">☾</span>
+      </button>
+      <div class="topbar__actions">{% block actions %}{% endblock %}</div>
+    </div>
+  </header>
+
+  {% if messages %}
+    <div class="flashes">
+      {% for message in messages %}
+        <div class="flash flash--{{ message.tags }}">{{ message }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="content">
+    {% block content %}{% endblock %}
+  </div>
+</main>
+</body>
+</html>

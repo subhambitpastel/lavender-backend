@@ -1,0 +1,31 @@
+{% comment %}
+Every problem on the page, listed in one block at the top, so a failed save
+never hides a second error further down. `forms` and `formsets` each take one
+object or a list. The wrapper carries data-error-summary, which the dashboard JS
+scrolls to on load.
+{% endcomment %}
+{% if forms.errors or formsets.errors %}
+  <div class="flash flash--error" data-error-summary>
+    <strong>That didn’t save — please fix the following:</strong>
+    <ul class="errorlist errorlist--summary">
+      {% for error in forms.non_field_errors %}<li>{{ error }}</li>{% endfor %}
+      {% for field in forms %}
+        {% for error in field.errors %}
+          <li><a href="#field-{{ field.name }}">{{ field.label }}</a>: {{ error }}</li>
+        {% endfor %}
+      {% endfor %}
+
+      {% if formsets %}
+        {% for error in formsets.non_form_errors %}<li>{{ error }}</li>{% endfor %}
+        {% for subform in formsets %}
+          {% for error in subform.non_field_errors %}<li>{{ error }}</li>{% endfor %}
+          {% for field in subform %}
+            {% for error in field.errors %}
+              <li>Colour {{ forloop.parentloop.parentloop.counter }} — {{ field.label }}: {{ error }}</li>
+            {% endfor %}
+          {% endfor %}
+        {% endfor %}
+      {% endif %}
+    </ul>
+  </div>
+{% endif %}

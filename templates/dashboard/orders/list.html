@@ -1,0 +1,44 @@
+{% extends "dashboard/base.html" %}
+
+{% block content %}
+<form class="toolbar" method="get">
+  <input class="input" type="search" name="q" value="{{ q }}" placeholder="Order number or email…">
+  <select class="input" name="status">
+    <option value="">All statuses</option>
+    {% for value, label in statuses %}
+      <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn btn--sm" type="submit">Filter</button>
+  <a class="btn btn--ghost btn--sm" href="{% url 'dashboard:order_list' %}">Reset</a>
+</form>
+
+<div class="card">
+  {% if orders %}
+  <table class="table">
+    <thead>
+      <tr><th>Order</th><th>Placed</th><th>Customer</th><th class="right">Items</th><th class="right">Total</th><th>Payment</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      {% for order in orders %}
+      <tr>
+        <td><a class="mono" href="{% url 'dashboard:order_detail' order.number %}">{{ order.number }}</a></td>
+        <td class="small muted nowrap">{{ order.created_at|date:"j M Y, H:i" }}</td>
+        <td class="small">
+          {{ order.shipping_name|default:order.email }}
+          <div class="muted">{{ order.email }}</div>
+        </td>
+        <td class="right">{{ order.item_count }}</td>
+        <td class="right nowrap">£{{ order.grand_total|floatformat:2 }}</td>
+        <td><span class="badge {% if order.payment_status == 'paid' %}badge--ok{% elif order.payment_status == 'refunded' %}badge--danger{% else %}badge--warn{% endif %}">{{ order.get_payment_status_display }}</span></td>
+        <td><span class="badge {% if order.status == 'delivered' or order.status == 'closed' %}badge--ok{% elif order.status == 'cancelled' or order.status == 'refunded' %}badge--danger{% elif order.status == 'draft' %}badge--warn{% else %}badge--accent{% endif %}">{{ order.get_status_display }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% include "dashboard/_pagination.html" with page=orders %}
+  {% else %}
+    <div class="empty"><p class="empty__title">No orders</p><p>Orders placed on the storefront appear here.</p></div>
+  {% endif %}
+</div>
+{% endblock %}

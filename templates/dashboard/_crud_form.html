@@ -1,0 +1,25 @@
+{% load dashboard_extras %}
+{% comment %}Shared "add / edit" card used by the taxonomy and discount screens.{% endcomment %}
+<form method="post" novalidate enctype="multipart/form-data" class="card">
+  {% csrf_token %}
+  <input type="hidden" name="pk" value="{{ form.instance.pk|default_if_none:'' }}">
+  <h2 class="card__title">{{ form_title|default:"Add new" }}</h2>
+  <p class="card__hint">{{ form_hint|default:"" }}</p>
+
+  {% include "dashboard/_form_errors.html" with forms=form %}
+
+  {% for field in form %}
+    {% if field.field.widget.input_type == "checkbox" %}
+      <div class="checkline">{{ field }} <span class="field__label">{{ field.label }}{% required_star field %}</span></div>
+    {% else %}
+      <label class="field" id="field-{{ field.name }}">
+        <span class="field__label">{{ field.label }}{% required_star field %}</span>
+        {{ field }}
+        {% if field.help_text %}<span class="field__hint">{{ field.help_text }}</span>{% endif %}
+        {% for error in field.errors %}<span class="field__error">{{ error }}</span>{% endfor %}
+      </label>
+    {% endif %}
+  {% endfor %}
+
+  <button class="btn btn--primary btn--block" type="submit">Save</button>
+</form>

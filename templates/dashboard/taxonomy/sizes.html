@@ -1,0 +1,32 @@
+{% extends "dashboard/base.html" %}
+
+{% block content %}
+<div class="grid grid--2">
+  <div class="card">
+    <h2 class="card__title">Sizes</h2>
+    <p class="card__hint">Every size here becomes a row in each colour's stock grid. Sort order controls display.</p>
+    <table class="table table--compact">
+      <thead><tr><th>Name</th><th class="right">Order</th><th class="right">SKUs</th><th></th></tr></thead>
+      <tbody>
+      {% for object in objects %}
+        <tr>
+          <td><strong>{{ object.name }}</strong></td>
+          <td class="right">{{ object.sort_order }}</td>
+          <td class="right">{{ object.variants.count }}</td>
+          <td class="right nowrap">
+            <a class="small" href="?edit={{ object.pk }}">Edit</a>
+            <form method="post" action="{% url 'dashboard:taxonomy_delete' 'size' object.pk %}" style="display:inline" data-confirm="Delete size “{{ object.name }}”?">
+              {% csrf_token %}<button class="linkbtn linkbtn--danger" type="submit">Delete</button>
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4" class="muted small">No sizes yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% include "dashboard/_crud_form.html" with form_title="Add / edit size" %}
+</div>
+{% endblock %}

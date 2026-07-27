@@ -1,0 +1,34 @@
+{% extends "dashboard/base.html" %}
+
+{% block content %}
+<div class="grid grid--2">
+  <div class="card">
+    <h2 class="card__title">Categories</h2>
+    <p class="card__hint">Nest a category under a parent to build the storefront navigation.</p>
+    <table class="table table--compact">
+      <thead><tr><th>Name</th><th>Parent</th><th class="right">Products</th><th>Nav</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      {% for object in objects %}
+        <tr>
+          <td>{{ object.name }}<div class="small muted mono">{{ object.slug }}</div></td>
+          <td class="small muted">{{ object.parent.name|default:"—" }}</td>
+          <td class="right">{{ object.n }}</td>
+          <td>{% if object.show_in_nav %}<span class="badge badge--accent">In nav</span>{% else %}<span class="badge">Hidden</span>{% endif %}</td>
+          <td>{% if object.is_active %}<span class="badge badge--ok">Active</span>{% else %}<span class="badge">Off</span>{% endif %}</td>
+          <td class="right nowrap">
+            <a class="small" href="?edit={{ object.pk }}">Edit</a>
+            <form method="post" action="{% url 'dashboard:taxonomy_delete' 'category' object.pk %}" style="display:inline" data-confirm="Delete “{{ object.name }}”?">
+              {% csrf_token %}<button class="linkbtn linkbtn--danger" type="submit">Delete</button>
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="muted small">No categories yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% include "dashboard/_crud_form.html" with form_title="Add / edit category" form_hint="Leave the slug blank to generate it from the name." %}
+</div>
+{% endblock %}

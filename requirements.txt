@@ -1,0 +1,14 @@
+Django==5.2.*
+djangorestframework
+djangorestframework-simplejwt
+django-filter
+django-cors-headers
+drf-spectacular
+django-environ
+Pillow
+django-imagekit
+phonenumbers
+whitenoise
+psycopg[binary]
+pytest-django
+factory_boy

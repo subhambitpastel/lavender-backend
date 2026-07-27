@@ -1,0 +1,234 @@
+{% extends "dashboard/base.html" %}
+{% load dashboard_extras %}
+
+{% block eyebrow %}Order{% endblock %}
+
+{% block actions %}
+  <span class="badge {% if order.status == 'delivered' or order.status == 'closed' %}badge--ok{% elif order.status == 'cancelled' or order.status == 'refunded' %}badge--danger{% else %}badge--accent{% endif %}">{{ order.get_status_display }}</span>
+  <span class="badge {% if order.payment_status == 'paid' %}badge--ok{% else %}badge--warn{% endif %}">{{ order.get_payment_status_display }}</span>
+  <a class="btn btn--ghost" href="{% url 'dashboard:order_list' %}">All orders</a>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid--2">
+  <div>
+    <div class="card">
+      <h2 class="card__title">Items</h2>
+      <table class="table table--compact">
+        <thead><tr><th>Product</th><th>SKU</th><th class="right">Qty</th><th class="right">Unit</th><th class="right">Line</th></tr></thead>
+        <tbody>
+        {% for item in order.items.all %}
+          <tr>
+            <td>
+              {{ item.product_name }}
+              <div class="small muted">{{ item.colour_name }} · {{ item.size_name }}</div>
+            </td>
+            <td class="mono muted small">{{ item.sku }}</td>
+            <td class="right">{{ item.quantity }}</td>
+            <td class="right nowrap">£{{ item.unit_price|floatformat:2 }}</td>
+            <td class="right nowrap">£{{ item.line_total|floatformat:2 }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+
+      <table class="totals" style="margin-top:18px">
+        <tr><td>Subtotal</td><td class="right">£{{ order.subtotal|floatformat:2 }}</td></tr>
+        {% if order.discount_total %}
+          <tr><td>Discount {% if order.discount_code %}<span class="mono small">({{ order.discount_code }})</span>{% endif %}</td><td class="right">−£{{ order.discount_total|floatformat:2 }}</td></tr>
+        {% endif %}
+        <tr><td>{{ order.get_shipping_method_display }}</td><td class="right">£{{ order.shipping_total|floatformat:2 }}</td></tr>
+        {% if order.tax_total %}<tr><td>Tax</td><td class="right">£{{ order.tax_total|floatformat:2 }}</td></tr>{% endif %}
+        <tr><td>Total</td><td class="right">£{{ order.grand_total|floatformat:2 }}</td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2 class="card__title">Addresses</h2>
+      <div class="grid grid--2">
+        <div>
+          <p class="subhead">Shipping</p>
+          {% with a=order.shipping_address %}
+          <p class="small">{{ a.first_name }} {{ a.last_name }}<br>
+            {% if a.line1 %}{{ a.line1 }}<br>{% endif %}
+            {% if a.line2 %}{{ a.line2 }}<br>{% endif %}
+            {% if a.city and a.city != a.line1 %}{{ a.city }}{% if a.county %}, {{ a.county }}{% endif %}<br>{% endif %}
+            {% if a.postcode %}{{ a.postcode }}<br>{% endif %}{{ a.country }}
+            {% if a.phone %}<br>{{ a.phone }}{% endif %}</p>
+          {% endwith %}
+        </div>
+        <div>
+          <p class="subhead">Billing</p>
+          {% with a=order.billing_address %}
+          <p class="small">{{ a.first_name }} {{ a.last_name }}<br>
+            {% if a.line1 %}{{ a.line1 }}<br>{% endif %}
+            {% if a.line2 %}{{ a.line2 }}<br>{% endif %}
+            {% if a.city and a.city != a.line1 %}{{ a.city }}<br>{% endif %}
+            {% if a.postcode %}{{ a.postcode }}<br>{% endif %}{{ a.country }}</p>
+          {% endwith %}
+        </div>
+      </div>
+      {% if order.customer_note %}
+        <p class="subhead" style="margin-top:16px">Customer note</p>
+        <p class="small">{{ order.customer_note }}</p>
+      {% endif %}
+    </div>
+
+    {% if order.returns.all %}
+    <div class="card">
+      <h2 class="card__title">Returns</h2>
+      <p class="card__hint">Approving refunds the listed lines and puts their stock back — once.</p>
+      {% for ret in order.returns.all %}
+        <div class="colour-panel">
+          <div class="card__head">
+            <div class="inline">
+              <span class="mono">{{ ret.number }}</span>
+              <span class="badge {% if ret.status == 'approved' %}badge--ok{% elif ret.status == 'rejected' %}badge--danger{% else %}badge--warn{% endif %}">{{ ret.get_status_display }}</span>
+            </div>
+            <span class="small muted nowrap">{{ ret.created_at|date:"j M Y" }}</span>
+          </div>
+          <p class="small">Reason: {{ ret.get_reason_display }}{% if ret.customer_note %} · “{{ ret.customer_note }}”{% endif %}</p>
+          <table class="table table--compact">
+            {% for ri in ret.items.all %}
+              <tr>
+                <td>{{ ri.order_item.product_name }}
+                  <span class="muted small">{{ ri.order_item.colour_name }} · {{ ri.order_item.size_name }}</span>
+                </td>
+                <td class="right">×{{ ri.quantity }}</td>
+                <td class="right nowrap">£{{ ri.line_refund|floatformat:2 }}</td>
+              </tr>
+            {% endfor %}
+          </table>
+          <p class="small">Refund total: <strong>£{{ ret.refund_total|floatformat:2 }}</strong></p>
+          {% if ret.status == 'requested' %}
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.path }}">
+              <textarea name="staff_note" rows="2" class="input input--area" style="margin-bottom:8px"
+                        placeholder="Internal note (optional)…"></textarea>
+              <div class="inline">
+                <button class="btn btn--primary btn--sm" type="submit"
+                        formaction="{% url 'dashboard:return_resolve' ret.number 'approve' %}"
+                        data-confirm="Approve {{ ret.number }} — refund £{{ ret.refund_total|floatformat:2 }} and restock its items?">
+                  Approve &amp; refund
+                </button>
+                <button class="btn btn--danger btn--sm" type="submit"
+                        formaction="{% url 'dashboard:return_resolve' ret.number 'reject' %}"
+                        data-confirm="Reject return {{ ret.number }}?">
+                  Reject
+                </button>
+              </div>
+            </form>
+          {% elif ret.staff_note %}
+            <p class="small muted">Staff note: {{ ret.staff_note }}</p>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <div>
+    <div class="card" style="border-color: var(--lavender-soft);">
+      <h2 class="card__title">Order status</h2>
+      <p class="card__hint">
+        Step the order through its lifecycle — the customer sees this on their
+        account and can leave a review once it’s delivered.
+      </p>
+
+      <ol class="stepper">
+        {% for step in steps %}
+          <li class="stepper__step is-{{ step.state }}">
+            <span class="stepper__dot">{% if step.state == 'done' %}✓{% endif %}</span>
+            <span class="stepper__label">{{ step.label }}</span>
+          </li>
+        {% endfor %}
+      </ol>
+
+      {% if order.status == 'cancelled' or order.status == 'refunded' %}
+        <p class="small">
+          This order was <span class="badge badge--danger">{{ order.get_status_display }}</span>
+          — off the lifecycle.
+        </p>
+      {% elif order.next_status %}
+        <form method="post" action="{% url 'dashboard:order_status' order.number %}">
+          {% csrf_token %}
+          <input type="hidden" name="status" value="{{ order.next_status }}">
+          <textarea name="note" rows="2" class="input input--area" style="margin-bottom:10px"
+                    placeholder="Admin note / reason (optional)…"></textarea>
+          <button class="btn btn--primary" type="submit">{{ order.advance_label }} →</button>
+        </form>
+        {% if order.is_cancellable %}
+          <form method="post" action="{% url 'dashboard:order_cancel' order.number %}"
+                data-confirm="Cancel {{ order.number }} and restock its items?" style="margin-top:8px">
+            {% csrf_token %}
+            <button class="btn btn--danger btn--sm" type="submit">Cancel order</button>
+          </form>
+        {% endif %}
+      {% else %}
+        <p class="small">
+          This order is <span class="badge badge--ok">{{ order.get_status_display }}</span>
+          — the end of the lifecycle.
+        </p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h2 class="card__title">Summary</h2>
+      <dl class="deflist">
+        <dt>Number</dt><dd class="mono">{{ order.number }}</dd>
+        <dt>Placed</dt><dd>{{ order.placed_at|date:"j M Y, H:i"|default:"—" }}</dd>
+        <dt>Customer</dt><dd>{% if order.user %}<a href="{% url 'dashboard:customer_detail' order.user_id %}">{{ order.user.full_name }}</a>{% else %}Guest{% endif %}</dd>
+        <dt>Email</dt><dd>{{ order.email }}</dd>
+        {% if order.phone %}<dt>Phone</dt><dd>{{ order.phone }}</dd>{% endif %}
+        <dt>Payment</dt><dd>{{ order.payment_provider|default:"—" }} <span class="mono small">{{ order.payment_ref }}</span></dd>
+        {% if order.stock_released %}<dt>Stock</dt><dd><span class="badge badge--warn">Returned to stock</span></dd>{% endif %}
+      </dl>
+    </div>
+
+    <form method="post" novalidate class="card">
+      {% csrf_token %}
+      <h2 class="card__title">Payment &amp; notes</h2>
+      <p class="card__hint">Payment status, courier tracking and internal notes. Order status is set above.</p>
+      {% for field in form %}
+        <label class="field">
+          <span class="field__label">{{ field.label }}{% required_star field %}</span>
+          {{ field }}
+          {% for error in field.errors %}<span class="field__error">{{ error }}</span>{% endfor %}
+        </label>
+      {% endfor %}
+      <button class="btn btn--primary btn--block" type="submit">Save changes</button>
+    </form>
+
+    {% if order.payment_status == 'paid' %}
+    <div class="card">
+      <h2 class="card__title">Refund</h2>
+      <p class="card__hint">Refunds the payment and returns every line item's stock, once.</p>
+      <form method="post" action="{% url 'dashboard:order_cancel' order.number %}" data-confirm="Refund {{ order.number }} and restock its items?">
+        {% csrf_token %}
+        <input type="hidden" name="refund" value="1">
+        <button class="btn btn--danger btn--sm" type="submit">Refund order</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <h2 class="card__title">Activity log</h2>
+  <p class="card__hint">Every status change, who made it and why.</p>
+  {% for event in order.status_events.all %}
+    <div class="logrow">
+      <span class="small">
+        <span class="muted">{{ event.actor|default:"system" }}</span> —
+        {% if event.from_status %}<span class="badge">{{ event.from_status|title }}</span> → {% endif %}
+        <span class="badge badge--accent">{{ event.to_status|title }}</span>
+        {% if event.note %}<span class="muted">· {{ event.note }}</span>{% endif %}
+      </span>
+      <span class="muted small nowrap">{{ event.created_at|date:"j M Y, H:i" }}</span>
+    </div>
+  {% empty %}
+    <p class="muted small">No status changes recorded yet.</p>
+  {% endfor %}
+</div>
+{% endblock %}

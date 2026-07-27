@@ -1,0 +1,56 @@
+{% extends "dashboard/base.html" %}
+{% load dashboard_extras %}
+
+{% block actions %}<a class="btn btn--primary" href="{% url 'dashboard:home_section_create' %}">New homepage block</a>{% endblock %}
+
+{% block content %}
+<div class="grid grid--2">
+  <form method="post" novalidate class="card">
+    {% csrf_token %}
+    <h2 class="card__title">Site settings</h2>
+    <p class="card__hint">Feeds <span class="mono">/api/v1/content/site</span> — announcement bar, USPs, footer, FAQs and contact details.</p>
+    {% for field in form %}
+      {% if field.field.widget.input_type == "checkbox" %}
+        <div class="checkline">{{ field }} <span class="field__label">{{ field.label }}{% required_star field %}</span></div>
+      {% else %}
+        <label class="field">
+          <span class="field__label">{{ field.label }}{% required_star field %}</span>
+          {{ field }}
+          {% if field.help_text %}<span class="field__hint">{{ field.help_text }}</span>{% endif %}
+          {% for error in field.errors %}<span class="field__error">{{ error }}</span>{% endfor %}
+        </label>
+      {% endif %}
+    {% endfor %}
+    <button class="btn btn--primary btn--block" type="submit">Save site settings</button>
+  </form>
+
+  <div class="card">
+    <h2 class="card__title">Homepage blocks</h2>
+    <p class="card__hint">Feeds <span class="mono">/api/v1/content/home</span>, rendered top to bottom in this order.</p>
+    <table class="table table--compact">
+      <thead><tr><th class="right">#</th><th>Block</th><th>Links to</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      {% for section in sections %}
+        <tr>
+          <td class="right muted">{{ section.sort_order }}</td>
+          <td>
+            <a href="{% url 'dashboard:home_section_edit' section.pk %}">{{ section.get_kind_display }}</a>
+            {% if section.title %}<div class="small muted">{{ section.title }}</div>{% endif %}
+          </td>
+          <td class="small muted">{{ section.collection.name|default:section.cta_href|default:"—" }}</td>
+          <td>{% if section.is_active %}<span class="badge badge--ok">On</span>{% else %}<span class="badge">Off</span>{% endif %}</td>
+          <td class="right nowrap">
+            <form method="post" action="{% url 'dashboard:home_section_action' section.pk 'up' %}" style="display:inline">{% csrf_token %}<button class="linkbtn" type="submit">↑</button></form>
+            <form method="post" action="{% url 'dashboard:home_section_action' section.pk 'down' %}" style="display:inline">{% csrf_token %}<button class="linkbtn" type="submit">↓</button></form>
+            <form method="post" action="{% url 'dashboard:home_section_action' section.pk 'toggle' %}" style="display:inline">{% csrf_token %}<button class="linkbtn" type="submit">Toggle</button></form>
+            <form method="post" action="{% url 'dashboard:home_section_action' section.pk 'delete' %}" style="display:inline" data-confirm="Delete this block?">{% csrf_token %}<button class="linkbtn linkbtn--danger" type="submit">Delete</button></form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="muted small">No homepage blocks yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

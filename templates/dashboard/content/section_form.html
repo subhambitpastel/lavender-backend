@@ -1,0 +1,25 @@
+{% extends "dashboard/base.html" %}
+{% load dashboard_extras %}
+
+{% block eyebrow %}Homepage block{% endblock %}
+{% block actions %}<a class="btn btn--ghost" href="{% url 'dashboard:content_settings' %}">Back to content</a>{% endblock %}
+
+{% block content %}
+<form method="post" novalidate enctype="multipart/form-data" class="card" style="max-width:760px">
+  {% csrf_token %}
+  <p class="card__hint">“Collection product row” blocks pull their products from the chosen collection; set <span class="mono">{"limit": 4}</span> in the payload to cap how many.</p>
+  {% for field in form %}
+    {% if field.field.widget.input_type == "checkbox" %}
+      <div class="checkline">{{ field }} <span class="field__label">{{ field.label }}{% required_star field %}</span></div>
+    {% else %}
+      <label class="field">
+        <span class="field__label">{{ field.label }}{% required_star field %}</span>
+        {{ field }}
+        {% if field.help_text %}<span class="field__hint">{{ field.help_text }}</span>{% endif %}
+        {% for error in field.errors %}<span class="field__error">{{ error }}</span>{% endfor %}
+      </label>
+    {% endif %}
+  {% endfor %}
+  <div class="inline inline--end"><button class="btn btn--primary" type="submit">Save block</button></div>
+</form>
+{% endblock %}

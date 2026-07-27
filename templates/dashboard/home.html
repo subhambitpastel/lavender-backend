@@ -1,0 +1,93 @@
+{% extends "dashboard/base.html" %}
+{% load humanize %}
+
+{% block actions %}
+  <a class="btn btn--ghost" href="{% url 'dashboard:inventory' %}?low=1">Low stock</a>
+  <a class="btn btn--primary" href="{% url 'dashboard:product_create' %}">New product</a>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid--kpi">
+  <div class="kpi">
+    <p class="kpi__label">Orders today</p>
+    <p class="kpi__value">{{ today_count }}</p>
+    <p class="kpi__meta">£{{ today_revenue|floatformat:2|intcomma }} revenue</p>
+  </div>
+  <div class="kpi">
+    <p class="kpi__label">Last 7 days</p>
+    <p class="kpi__value">{{ week_count }}</p>
+    <p class="kpi__meta">£{{ week_revenue|floatformat:2|intcomma }} revenue</p>
+  </div>
+  <div class="kpi {% if pending_orders %}kpi--accent{% endif %}">
+    <p class="kpi__label">Awaiting action</p>
+    <p class="kpi__value">{{ pending_orders|add:awaiting_fulfilment }}</p>
+    <p class="kpi__meta">{{ pending_orders }} pending · {{ awaiting_fulfilment }} to fulfil</p>
+  </div>
+  <div class="kpi">
+    <p class="kpi__label">New customers</p>
+    <p class="kpi__value">{{ new_customers }}</p>
+    <p class="kpi__meta">{{ subscriber_count }} newsletter subscribers</p>
+  </div>
+  <div class="kpi {% if low_stock_count %}kpi--accent{% endif %}">
+    <p class="kpi__label">Low stock SKUs</p>
+    <p class="kpi__value">{{ low_stock_count }}</p>
+    <p class="kpi__meta">{{ product_count }} active products</p>
+  </div>
+  <div class="kpi {% if pending_reviews %}kpi--accent{% endif %}">
+    <p class="kpi__label">Reviews to moderate</p>
+    <p class="kpi__value">{{ pending_reviews }}</p>
+    <p class="kpi__meta"><a href="{% url 'dashboard:review_list' %}">Moderate now</a></p>
+  </div>
+</div>
+
+<div class="grid grid--2" style="margin-top:20px">
+  <div class="card">
+    <div class="card__head">
+      <h2 class="card__title">Recent orders</h2>
+      <a class="small" href="{% url 'dashboard:order_list' %}">All orders</a>
+    </div>
+    {% if recent_orders %}
+      <table class="table table--compact">
+        <thead><tr><th>Order</th><th>Customer</th><th>Status</th><th class="right">Total</th></tr></thead>
+        <tbody>
+        {% for order in recent_orders %}
+          <tr>
+            <td><a href="{% url 'dashboard:order_detail' order.number %}" class="mono">{{ order.number }}</a></td>
+            <td class="small">{{ order.email }}</td>
+            <td><span class="badge {% if order.status == 'paid' %}badge--ok{% elif order.status == 'pending' %}badge--warn{% elif order.status == 'cancelled' or order.status == 'refunded' %}badge--danger{% endif %}">{{ order.get_status_display }}</span></td>
+            <td class="right nowrap">£{{ order.grand_total|floatformat:2 }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="muted small">No orders yet.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card__head">
+      <h2 class="card__title">Running low</h2>
+      <a class="small" href="{% url 'dashboard:inventory' %}?low=1">Manage stock</a>
+    </div>
+    {% if low_stock %}
+      <table class="table table--compact">
+        <thead><tr><th>Product</th><th>Colour / size</th><th class="right">Left</th></tr></thead>
+        <tbody>
+        {% for variant in low_stock %}
+          <tr>
+            <td><a href="{% url 'dashboard:product_edit' variant.colour.product_id %}">{{ variant.colour.product.name }}</a></td>
+            <td class="small muted">{{ variant.colour.name }} · {{ variant.size.name }}</td>
+            <td class="right">
+              <span class="badge {% if variant.stock_quantity == 0 %}badge--danger{% else %}badge--warn{% endif %}">{{ variant.stock_quantity }}</span>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="muted small">Everything is well stocked.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

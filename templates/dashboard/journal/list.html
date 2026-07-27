@@ -1,0 +1,56 @@
+{% extends "dashboard/base.html" %}
+{% load dashboard_extras %}
+
+{% block actions %}<a class="btn btn--primary" href="{% url 'dashboard:journal_create' %}">New post</a>{% endblock %}
+
+{% block content %}
+<div class="grid grid--2">
+  <div class="card">
+    <h2 class="card__title">Posts</h2>
+    <table class="table table--compact">
+      <thead><tr><th>Title</th><th>Category</th><th>Published</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      {% for post in posts %}
+        <tr>
+          <td><a href="{% url 'dashboard:journal_edit' post.pk %}">{{ post.title }}</a>
+            <div class="small muted mono">{{ post.slug }}</div></td>
+          <td class="small muted">{{ post.category.name|default:"—" }}</td>
+          <td class="small muted nowrap">{{ post.published_at|date:"j M Y"|default:"—" }}</td>
+          <td>{% if post.is_published %}<span class="badge badge--ok">Live</span>{% else %}<span class="badge">Draft</span>{% endif %}
+            {% if post.is_featured %}<span class="badge badge--accent">Featured</span>{% endif %}</td>
+          <td class="right nowrap">
+            <a class="small" href="{% url 'dashboard:journal_edit' post.pk %}">Edit</a>
+            <form method="post" action="{% url 'dashboard:journal_delete' post.pk %}" style="display:inline" data-confirm="Delete “{{ post.title }}”?">
+              {% csrf_token %}<button class="linkbtn linkbtn--danger" type="submit">Delete</button>
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="muted small">No posts yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% include "dashboard/_pagination.html" with page=posts %}
+  </div>
+
+  <div>
+    <div class="card">
+      <h2 class="card__title">Categories</h2>
+      <p class="card__hint">Shown as filter pills on the journal index.</p>
+      {% for category in categories %}
+        <p class="small">{{ category.name }} <span class="muted mono">{{ category.slug }}</span></p>
+      {% empty %}<p class="muted small">None yet.</p>{% endfor %}
+
+      <form method="post" action="{% url 'dashboard:journal_category_create' %}" style="margin-top:16px">
+        {% csrf_token %}
+        {% for field in category_form %}
+          <label class="field">
+            <span class="field__label">{{ field.label }}{% required_star field %}</span>{{ field }}
+          </label>
+        {% endfor %}
+        <button class="btn btn--sm" type="submit">Add category</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

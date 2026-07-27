@@ -1,0 +1,91 @@
+{% extends "dashboard/base.html" %}
+
+{% block actions %}
+  <a class="btn btn--primary" href="{% url 'dashboard:product_create' %}">New product</a>
+{% endblock %}
+
+{% block content %}
+<form class="toolbar" method="get">
+  <input class="input" type="search" name="q" value="{{ q }}" placeholder="Search products…">
+  <select class="input" name="category">
+    <option value="">All categories</option>
+    {% for category in categories %}
+      <option value="{{ category.slug }}" {% if request.GET.category == category.slug %}selected{% endif %}>{{ category.name }}</option>
+    {% endfor %}
+  </select>
+  <select class="input" name="collection">
+    <option value="">All collections</option>
+    {% for collection in collections %}
+      <option value="{{ collection.slug }}" {% if request.GET.collection == collection.slug %}selected{% endif %}>{{ collection.name }}</option>
+    {% endfor %}
+  </select>
+  <select class="input" name="state">
+    <option value="">Any status</option>
+    <option value="active" {% if request.GET.state == 'active' %}selected{% endif %}>Active</option>
+    <option value="inactive" {% if request.GET.state == 'inactive' %}selected{% endif %}>Inactive</option>
+    <option value="sale" {% if request.GET.state == 'sale' %}selected{% endif %}>On sale</option>
+  </select>
+  <button class="btn btn--sm" type="submit">Filter</button>
+  <a class="btn btn--ghost btn--sm" href="{% url 'dashboard:product_list' %}">Reset</a>
+</form>
+
+<div class="card">
+  {% if products %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th></th><th>Product</th><th>Category</th><th>Colours</th>
+        <th class="right">Price</th><th class="right">Stock</th><th>Status</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for product in products %}
+      <tr>
+        <td>
+          {% with image=product.primary_image %}
+            {% if image %}<img class="thumb" src="{{ image.image.url }}" alt="">{% else %}<span class="thumb"></span>{% endif %}
+          {% endwith %}
+        </td>
+        <td>
+          <a href="{% url 'dashboard:product_edit' product.pk %}">{{ product.name }}</a>
+          <div class="small muted mono">{{ product.slug }}</div>
+        </td>
+        <td class="small">{{ product.category.name }}</td>
+        <td>
+          <div class="inline">
+            {% for colour in product.colours.all %}
+              <span class="swatch" style="background: {{ colour.swatch_hex }}; width:16px; height:16px" title="{{ colour.name }} · {{ colour.stock }} in stock"></span>
+            {% empty %}
+              <span class="small muted">None</span>
+            {% endfor %}
+          </div>
+        </td>
+        <td class="right nowrap">
+          £{{ product.base_price|floatformat:2 }}
+          {% if product.on_sale %}<div class="small muted"><s>£{{ product.compare_at_price|floatformat:2 }}</s></div>{% endif %}
+        </td>
+        <td class="right">
+          <span class="badge {% if not product.stock %}badge--danger{% elif product.stock < 10 %}badge--warn{% else %}badge--ok{% endif %}">{{ product.stock|default:0 }}</span>
+        </td>
+        <td>{% include "dashboard/products/_active_toggle.html" %}</td>
+        <td class="right nowrap">
+          <a class="small" href="{% url 'dashboard:product_edit' product.pk %}">Edit</a>
+          <form method="post" action="{% url 'dashboard:product_delete' product.pk %}" style="display:inline" data-confirm="Delete “{{ product.name }}” and all its variants?">
+            {% csrf_token %}
+            <button class="linkbtn linkbtn--danger" type="submit">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% include "dashboard/_pagination.html" with page=products %}
+  {% else %}
+    <div class="empty">
+      <p class="empty__title">No products yet</p>
+      <p>Create your first product to start selling.</p>
+      <p style="margin-top:18px"><a class="btn btn--primary" href="{% url 'dashboard:product_create' %}">New product</a></p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

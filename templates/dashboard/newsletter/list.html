@@ -1,0 +1,47 @@
+{% extends "dashboard/base.html" %}
+
+{% block actions %}
+  <span class="badge badge--accent">{{ total }} active</span>
+  <a class="btn btn--primary" href="{% url 'dashboard:newsletter_export' %}">Export CSV</a>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid--2">
+  <div class="card">
+    <h2 class="card__title">Subscribers</h2>
+    <table class="table table--compact">
+      <thead><tr><th>Email</th><th>Source</th><th>Subscribed</th><th>Status</th></tr></thead>
+      <tbody>
+      {% for subscriber in subscribers %}
+        <tr>
+          <td>{{ subscriber.email }}</td>
+          <td class="small muted">{{ subscriber.source }}</td>
+          <td class="small muted nowrap">{{ subscriber.created_at|date:"j M Y" }}</td>
+          <td>{% if subscriber.is_active %}<span class="badge badge--ok">Active</span>{% else %}<span class="badge">Unsubscribed</span>{% endif %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4" class="muted small">No subscribers yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% include "dashboard/_pagination.html" with page=subscribers %}
+  </div>
+
+  <div class="card">
+    <h2 class="card__title">Contact enquiries</h2>
+    <p class="card__hint">Unhandled messages from the storefront contact form.</p>
+    {% for message in messages_received %}
+      <div style="border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:12px">
+        <p style="margin:0"><strong>{{ message.subject|default:"Enquiry" }}</strong></p>
+        <p class="small muted" style="margin:2px 0">{{ message.name }} &lt;{{ message.email }}&gt; · {{ message.created_at|date:"j M Y" }}</p>
+        <p class="small">{{ message.message|truncatewords:40 }}</p>
+        <form method="post" action="{% url 'dashboard:contact_handled' message.pk %}">
+          {% csrf_token %}<button class="linkbtn" type="submit">Mark handled</button>
+        </form>
+      </div>
+    {% empty %}
+      <p class="muted small">Nothing waiting.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

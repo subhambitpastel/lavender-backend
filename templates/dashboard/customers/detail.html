@@ -1,0 +1,64 @@
+{% extends "dashboard/base.html" %}
+{% load dashboard_extras %}
+
+{% block eyebrow %}Customer{% endblock %}
+{% block actions %}<a class="btn btn--ghost" href="{% url 'dashboard:customer_list' %}">All customers</a>{% endblock %}
+
+{% block content %}
+<div class="grid grid--2">
+  <div>
+    <div class="card">
+      <h2 class="card__title">Orders</h2>
+      {% if orders %}
+        <table class="table table--compact">
+          <thead><tr><th>Order</th><th>Placed</th><th>Status</th><th class="right">Total</th></tr></thead>
+          <tbody>
+          {% for order in orders %}
+            <tr>
+              <td><a class="mono" href="{% url 'dashboard:order_detail' order.number %}">{{ order.number }}</a></td>
+              <td class="small muted">{{ order.created_at|date:"j M Y" }}</td>
+              <td><span class="badge">{{ order.get_status_display }}</span></td>
+              <td class="right nowrap">£{{ order.grand_total|floatformat:2 }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      {% else %}<p class="muted small">No orders yet.</p>{% endif %}
+    </div>
+
+    <div class="card">
+      <h2 class="card__title">Saved addresses</h2>
+      {% for address in addresses %}
+        <p class="small">
+          {{ address.first_name }} {{ address.last_name }} — {{ address.line1 }}, {{ address.city }} {{ address.postcode }}
+          {% if address.is_default_shipping %}<span class="badge badge--accent">Default shipping</span>{% endif %}
+        </p>
+      {% empty %}<p class="muted small">No saved addresses.</p>{% endfor %}
+    </div>
+
+    <div class="card">
+      <h2 class="card__title">Wishlist</h2>
+      {% for item in wishlist %}
+        <p class="small"><a href="{% url 'dashboard:product_edit' item.product_id %}">{{ item.product.name }}</a></p>
+      {% empty %}<p class="muted small">Nothing saved.</p>{% endfor %}
+    </div>
+  </div>
+
+  <form method="post" novalidate class="card">
+    {% csrf_token %}
+    <h2 class="card__title">Profile</h2>
+    {% for field in form %}
+      {% if field.field.widget.input_type == "checkbox" %}
+        <div class="checkline">{{ field }} <span class="field__label">{{ field.label }}{% required_star field %}</span></div>
+      {% else %}
+        <label class="field">
+          <span class="field__label">{{ field.label }}{% required_star field %}</span>
+          {{ field }}
+          {% for error in field.errors %}<span class="field__error">{{ error }}</span>{% endfor %}
+        </label>
+      {% endif %}
+    {% endfor %}
+    <button class="btn btn--primary btn--block" type="submit">Save customer</button>
+  </form>
+</div>
+{% endblock %}

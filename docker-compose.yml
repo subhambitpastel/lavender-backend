@@ -1,0 +1,18 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: lavenderhill
+      POSTGRES_USER: lavenderhill
+      POSTGRES_PASSWORD: change-me
+    # Host 5433 — this machine already runs a native Postgres service on 5432.
+    ports: ["5433:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lavenderhill"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata: {}

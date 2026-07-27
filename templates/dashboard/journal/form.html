@@ -1,0 +1,27 @@
+{% extends "dashboard/base.html" %}
+{% load dashboard_extras %}
+
+{% block eyebrow %}Journal{% endblock %}
+{% block actions %}<a class="btn btn--ghost" href="{% url 'dashboard:journal_list' %}">Back to journal</a>{% endblock %}
+
+{% block content %}
+<form method="post" novalidate enctype="multipart/form-data" class="card" style="max-width:900px">
+  {% csrf_token %}
+  <p class="card__hint">Body accepts HTML. Publishing without a date stamps it with now.</p>
+  {% for field in form %}
+    {% if field.field.widget.input_type == "checkbox" %}
+      <div class="checkline">{{ field }} <span class="field__label">{{ field.label }}{% required_star field %}</span></div>
+    {% else %}
+      <label class="field">
+        <span class="field__label">{{ field.label }}{% required_star field %}</span>
+        {{ field }}
+        {% if field.help_text %}<span class="field__hint">{{ field.help_text }}</span>{% endif %}
+        {% for error in field.errors %}<span class="field__error">{{ error }}</span>{% endfor %}
+      </label>
+    {% endif %}
+  {% endfor %}
+  <div class="inline inline--end">
+    <button class="btn btn--primary" type="submit">Save post</button>
+  </div>
+</form>
+{% endblock %}

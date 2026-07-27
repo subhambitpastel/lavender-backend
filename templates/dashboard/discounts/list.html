@@ -1,0 +1,37 @@
+{% extends "dashboard/base.html" %}
+
+{% block content %}
+<div class="grid grid--2">
+  <div class="card">
+    <h2 class="card__title">Promo codes</h2>
+    <p class="card__hint">Codes apply at cart and are re-validated at checkout.</p>
+    <table class="table table--compact">
+      <thead><tr><th>Code</th><th>Value</th><th>Min spend</th><th>Window</th><th class="right">Used</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      {% for object in objects %}
+        <tr>
+          <td class="mono"><strong>{{ object.code }}</strong>{% if object.description %}<div class="small muted">{{ object.description }}</div>{% endif %}</td>
+          <td class="nowrap">{% if object.kind == 'percent' %}{{ object.value|floatformat:0 }}%{% else %}£{{ object.value|floatformat:2 }}{% endif %}</td>
+          <td class="nowrap">{% if object.min_spend %}£{{ object.min_spend|floatformat:2 }}{% else %}—{% endif %}</td>
+          <td class="small muted nowrap">
+            {{ object.starts_at|date:"j M y"|default:"—" }} → {{ object.ends_at|date:"j M y"|default:"—" }}
+          </td>
+          <td class="right">{{ object.used_count }}{% if object.usage_limit %}/{{ object.usage_limit }}{% endif %}</td>
+          <td>{% if object.is_active %}<span class="badge badge--ok">Active</span>{% else %}<span class="badge">Off</span>{% endif %}</td>
+          <td class="right nowrap">
+            <a class="small" href="?edit={{ object.pk }}">Edit</a>
+            <form method="post" action="{% url 'dashboard:discount_delete' object.pk %}" style="display:inline" data-confirm="Delete {{ object.code }}?">
+              {% csrf_token %}<button class="linkbtn linkbtn--danger" type="submit">Delete</button>
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7" class="muted small">No discount codes yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% include "dashboard/_crud_form.html" with form_title="Add / edit code" form_hint="Percentage codes take a value like 10; fixed codes take an amount in £." %}
+</div>
+{% endblock %}

@@ -1,0 +1,85 @@
+{% extends "dashboard/base.html" %}
+{% load dashboard_extras %}
+
+{% block eyebrow %}{% if product %}Editing product{% else %}New product{% endif %}{% endblock %}
+
+{% block actions %}
+  {% if product %}
+    <span class="badge {% if product.is_active %}badge--ok{% endif %}">{% if product.is_active %}Active{% else %}Hidden{% endif %}</span>
+    <span class="badge badge--accent">{{ product.total_stock }} units in stock</span>
+  {% endif %}
+  <a class="btn btn--ghost" href="{% url 'dashboard:product_list' %}">Back to products</a>
+{% endblock %}
+
+{% block content %}
+<form method="post" novalidate enctype="multipart/form-data" id="product-form">
+  {% csrf_token %}
+
+  {% include "dashboard/_form_errors.html" with forms=form formsets=colour_formset %}
+
+  <div class="card">
+    <h2 class="card__title">Details</h2>
+    <p class="card__hint">The core product record — name, copy, pricing and merchandising flags.</p>
+
+    {% for error in form.non_field_errors %}<div class="flash flash--error">{{ error }}</div>{% endfor %}
+
+    {% for field in form %}
+      {% if field.name in "is_active,is_featured,is_new_in,is_bestseller" %}
+      {% elif field.name in "fabrics,collections" %}
+        <div class="field" id="field-{{ field.name }}">
+          <span class="field__label">{{ field.label }}{% required_star field %}</span>
+          <div class="checkgroup">{{ field }}</div>
+          {% for error in field.errors %}<span class="field__error">{{ error }}</span>{% endfor %}
+        </div>
+      {% else %}
+        <label class="field" id="field-{{ field.name }}">
+          <span class="field__label">{{ field.label }}{% required_star field %}</span>
+          {{ field }}
+          {% if field.help_text %}<span class="field__hint">{{ field.help_text }}</span>{% endif %}
+          {% for error in field.errors %}<span class="field__error">{{ error }}</span>{% endfor %}
+        </label>
+      {% endif %}
+    {% endfor %}
+
+    <p class="subhead" style="margin-top:20px">Visibility &amp; badges</p>
+    <div class="checkline">{{ form.is_active }} <span class="field__label">Active (visible on the storefront)</span></div>
+    <div class="checkline">{{ form.is_new_in }} <span class="field__label">New in</span></div>
+    <div class="checkline">{{ form.is_bestseller }} <span class="field__label">Bestseller</span></div>
+    <div class="checkline">{{ form.is_featured }} <span class="field__label">Featured on the homepage</span></div>
+  </div>
+
+  {# --------------------------------------------- colours: details + images + stock #}
+  <div class="card">
+    <div class="card__head">
+      <div>
+        <h2 class="card__title">Colours</h2>
+        <p class="card__hint">
+          Each colourway carries its own images and its own per-size stock. Add as
+          many as you like — they save with the product.
+        </p>
+      </div>
+    </div>
+
+    {{ colour_formset.management_form }}
+    {% for error in colour_formset.non_form_errors %}<div class="flash flash--error">{{ error }}</div>{% endfor %}
+
+    <div data-colour-list>
+      {% for cform in colour_formset %}
+        {% include "dashboard/products/_colour_panel.html" with cform=cform rows=cform.stock_rows %}
+      {% endfor %}
+    </div>
+
+    <button class="btn btn--sm" type="button" data-add-colour>+ Add another colour</button>
+
+    {# Cloned by the button above; __prefix__ becomes the next form index. #}
+    <template id="colour-empty-template">
+      {% include "dashboard/products/_colour_panel.html" with cform=colour_formset.empty_form rows=blank_rows %}
+    </template>
+  </div>
+
+  <div class="inline inline--end" style="margin-bottom:24px">
+    <button class="btn" type="submit" name="save_and_continue" value="1">Save &amp; keep editing</button>
+    <button class="btn btn--primary" type="submit">Save product</button>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% comment %}
+The image manager for one colour — no <form> of its own (it renders inside the
+product form, and a nested form is invalid HTML). Images are shown in the order
+the admin arranges them; drag a tile, or use the ◀ ▶ buttons, to reorder. The
+buttons here post over HTMX; drag/reorder and incremental upload are wired in
+dashboard.js. The whole strip swaps into #images-{{ colour.pk }}.
+{% endcomment %}
+<div class="imagestrip" data-sortable
+     data-reorder-url="{% url 'dashboard:colour_images_reorder' colour.pk %}"
+     data-target="#images-{{ colour.pk }}">
+  {% for image in images %}
+    <figure class="imagestrip__item{% if image.is_primary %} is-cover{% endif %}"
+            draggable="true" data-image-id="{{ image.pk }}">
+      <span class="imagestrip__handle" title="Drag to reorder" aria-hidden="true">⠿</span>
+      {% if image.is_primary %}<span class="imagestrip__badge">Cover</span>{% endif %}
+      <img class="imagestrip__img" src="{{ image.thumb.url }}" alt="{{ image.alt_text }}"
+           draggable="false">
+      <figcaption class="imagestrip__actions">
+        <button class="iconbtn" type="button" data-move="prev" aria-label="Move earlier" title="Move earlier">◀</button>
+        <button class="iconbtn" type="button" data-move="next" aria-label="Move later" title="Move later">▶</button>
+        {% if image.is_primary %}
+          <span class="imagestrip__cover">Cover</span>
+        {% else %}
+          <button class="linkbtn" type="button"
+                  hx-post="{% url 'dashboard:image_primary' image.pk %}"
+                  hx-target="#images-{{ colour.pk }}" hx-swap="innerHTML">Make cover</button>
+        {% endif %}
+        <button class="linkbtn linkbtn--danger" type="button"
+                hx-post="{% url 'dashboard:image_delete' image.pk %}"
+                hx-confirm="Delete this image?"
+                hx-target="#images-{{ colour.pk }}" hx-swap="innerHTML">Delete</button>
+      </figcaption>
+    </figure>
+  {% empty %}
+    <p class="muted small imagestrip__empty">No images yet — add the first one below.</p>
+  {% endfor %}
+</div>

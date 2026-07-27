@@ -1,0 +1,52 @@
+{% extends "dashboard/base.html" %}
+
+{% block actions %}
+  <a class="btn btn--ghost btn--sm {% if state == 'pending' %}btn--primary{% endif %}" href="?state=pending">Pending ({{ pending_count }})</a>
+  <a class="btn btn--ghost btn--sm {% if state == 'rejected' %}btn--primary{% endif %}" href="?state=rejected">Changes requested ({{ rejected_count }})</a>
+  <a class="btn btn--ghost btn--sm {% if state == 'approved' %}btn--primary{% endif %}" href="?state=approved">Published</a>
+  <a class="btn btn--ghost btn--sm {% if state == 'all' %}btn--primary{% endif %}" href="?state=all">All</a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <p class="card__hint">A review stays private until you approve it. Requesting changes sends the shopper your reason so they can edit and resubmit — the full history is kept.</p>
+  {% if reviews %}
+  <table class="table">
+    <thead><tr><th>Product</th><th>Rating</th><th>Review</th><th>Author</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for review in reviews %}
+      <tr>
+        <td><a href="{% url 'dashboard:review_detail' review.pk %}">{{ review.product.name }}</a></td>
+        <td class="nowrap">{% for _ in "12345"|make_list %}{% if forloop.counter <= review.rating %}★{% else %}<span class="muted">☆</span>{% endif %}{% endfor %}</td>
+        <td style="max-width:420px">
+          {% if review.title %}<strong>{{ review.title }}</strong><br>{% endif %}
+          <span class="small">{{ review.body|truncatewords:36 }}</span>
+        </td>
+        <td class="small">
+          {{ review.author_name }}
+          {% if review.author_location %}<div class="muted">{{ review.author_location }}</div>{% endif %}
+          {% if review.is_verified %}<span class="badge badge--ok">Verified</span>{% endif %}
+        </td>
+        <td>
+          {% if review.status == 'approved' %}<span class="badge badge--ok">Published</span>
+          {% elif review.status == 'rejected' %}<span class="badge badge--warn">Changes requested</span>
+          {% else %}<span class="badge badge--warn">Pending</span>{% endif %}
+        </td>
+        <td class="right nowrap">
+          {% if review.status != 'approved' %}
+            <form method="post" action="{% url 'dashboard:review_moderate' review.pk 'approve' %}" style="display:inline">
+              {% csrf_token %}<button class="btn btn--sm" type="submit">Approve</button>
+            </form>
+          {% endif %}
+          <a class="btn btn--ghost btn--sm" href="{% url 'dashboard:review_detail' review.pk %}">Review &amp; history »</a>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% include "dashboard/_pagination.html" with page=reviews %}
+  {% else %}
+    <div class="empty"><p class="empty__title">Nothing here</p><p>New reviews land in “Pending” before going live.</p></div>
+  {% endif %}
+</div>
+{% endblock %}

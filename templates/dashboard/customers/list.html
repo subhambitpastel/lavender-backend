@@ -1,0 +1,33 @@
+{% extends "dashboard/base.html" %}
+
+{% block content %}
+<form class="toolbar" method="get">
+  <input class="input" type="search" name="q" value="{{ q }}" placeholder="Search name or email…">
+  <button class="btn btn--sm" type="submit">Search</button>
+  <a class="btn btn--ghost btn--sm" href="{% url 'dashboard:customer_list' %}">Reset</a>
+</form>
+
+<div class="card">
+  <table class="table">
+    <thead><tr><th>Customer</th><th>Email</th><th>Joined</th><th class="right">Orders</th><th class="right">Spend</th><th>Access</th></tr></thead>
+    <tbody>
+    {% for customer in customers %}
+      <tr>
+        <td><a href="{% url 'dashboard:customer_detail' customer.pk %}">{{ customer.full_name }}</a></td>
+        <td class="small muted">{{ customer.email }}</td>
+        <td class="small muted nowrap">{{ customer.date_joined|date:"j M Y" }}</td>
+        <td class="right">{{ customer.order_count }}</td>
+        <td class="right nowrap">£{{ customer.spend|default:0|floatformat:2 }}</td>
+        <td>
+          {% if customer.is_staff %}<span class="badge badge--accent">Staff</span>{% endif %}
+          {% if not customer.is_active %}<span class="badge badge--danger">Disabled</span>{% endif %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6" class="muted small">No customers yet.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% include "dashboard/_pagination.html" with page=customers %}
+</div>
+{% endblock %}

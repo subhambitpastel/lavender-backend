@@ -1,0 +1,44 @@
+{% load static dashboard_extras %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · Lavender Hill Dashboard</title>
+  <script>
+    /* Honour the dashboard's saved light/dark choice on the sign-in screen too. */
+    (function () {
+      var t;
+      try { t = localStorage.getItem("lh_dash_theme"); } catch (e) {}
+      document.documentElement.setAttribute("data-theme", t === "dark" ? "dark" : "light");
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static_v 'dashboard/dashboard.css' %}">
+</head>
+<body class="auth">
+  <div class="auth__card">
+    <p class="auth__mark">LH</p>
+    <h1 class="auth__title">Lavender Hill</h1>
+    <p class="auth__subtitle">Staff dashboard</p>
+
+    {% if messages %}
+      {% for message in messages %}
+        <div class="flash flash--{{ message.tags }}">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+
+    <form method="post" novalidate class="auth__form">
+      {% csrf_token %}
+      {% for field in form %}
+        <label class="field">
+          <span class="field__label">{{ field.label }}{% required_star field %}</span>
+          {{ field }}
+          {% for error in field.errors %}<span class="field__error">{{ error }}</span>{% endfor %}
+        </label>
+      {% endfor %}
+      <button class="btn btn--primary btn--block" type="submit">Sign in</button>
+    </form>
+  </div>
+</body>
+</html>

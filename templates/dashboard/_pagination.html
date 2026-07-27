@@ -1,0 +1,13 @@
+{% if page.paginator.num_pages > 1 %}
+<div class="pagination">
+  {% if page.has_previous %}
+    <a href="?{{ querystring }}page={{ page.previous_page_number }}">Previous</a>
+  {% endif %}
+  <span class="is-current">{{ page.number }}</span>
+  <span class="muted">of {{ page.paginator.num_pages }}</span>
+  {% if page.has_next %}
+    <a href="?{{ querystring }}page={{ page.next_page_number }}">Next</a>
+  {% endif %}
+  <span class="muted small">{{ page.paginator.count }} total</span>
+</div>
+{% endif %}

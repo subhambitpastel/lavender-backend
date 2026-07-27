@@ -1,0 +1,163 @@
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.contrib.auth.tokens import default_token_generator
+from django.core.mail import send_mail
+from django.utils.encoding import force_bytes, force_str
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+from drf_spectacular.utils import extend_schema
+from rest_framework import status, viewsets
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView
+
+from apps.cart.utils import merge_guest_cart
+
+from .models import Address
+from .serializers import (
+    AddressSerializer,
+    EmailTokenObtainPairSerializer,
+    PasswordChangeSerializer,
+    PasswordResetConfirmSerializer,
+    PasswordResetRequestSerializer,
+    RegisterSerializer,
+    UserSerializer,
+)
+
+User = get_user_model()
+
+
+class LoginView(TokenObtainPairView):
+    """POST {email, password} → {access, refresh, user}. Merges any guest cart."""
+
+    serializer_class = EmailTokenObtainPairSerializer
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        if response.status_code == 200:
+            user = User.objects.filter(email__iexact=request.data.get("email", "")).first()
+            if user:
+                merge_guest_cart(request, user)
+        return response
+
+
+class RegisterView(APIView):
+    permission_classes = [AllowAny]
+
+    @extend_schema(request=RegisterSerializer, responses=UserSerializer)
+    def post(self, request):
+        serializer = RegisterSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        merge_guest_cart(request, user)
+        refresh = RefreshToken.for_user(user)
+        return Response(
+            {
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+                "user": UserSerializer(user, context={"request": request}).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class MeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(responses=UserSerializer)
+    def get(self, request):
+        return Response(UserSerializer(request.user, context={"request": request}).data)
+
+    @extend_schema(request=UserSerializer, responses=UserSerializer)
+    def patch(self, request):
+        serializer = UserSerializer(
+            request.user, data=request.data, partial=True, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+
+class LogoutView(APIView):
+    """Blacklist the supplied refresh token."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        token = request.data.get("refresh")
+        if token:
+            try:
+                RefreshToken(token).blacklist()
+            except Exception:
+                pass
+        return Response({"detail": "Signed out."})
+
+
+class PasswordChangeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = PasswordChangeSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        request.user.set_password(serializer.validated_data["new_password"])
+        request.user.save(update_fields=["password"])
+        return Response({"detail": "Password updated."})
+
+
+class PasswordResetRequestView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = PasswordResetRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = User.objects.filter(email__iexact=serializer.validated_data["email"]).first()
+        if user:
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
+            token = default_token_generator.make_token(user)
+            link = f"{settings.FRONTEND_URL}/account/reset-password?uid={uid}&token={token}"
+            send_mail(
+                "Reset your Lavender Hill password",
+                f"Use this link to choose a new password:\n\n{link}\n",
+                settings.DEFAULT_FROM_EMAIL,
+                [user.email],
+                fail_silently=True,
+            )
+        # Always 200 so the endpoint can't be used to enumerate accounts.
+        return Response({"detail": "If that email exists, a reset link is on its way."})
+
+
+class PasswordResetConfirmView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = PasswordResetConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            uid = force_str(urlsafe_base64_decode(serializer.validated_data["uid"]))
+            user = User.objects.get(pk=uid)
+        except (User.DoesNotExist, ValueError, TypeError, OverflowError):
+            return Response(
+                {"detail": "That reset link is invalid."}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if not default_token_generator.check_token(user, serializer.validated_data["token"]):
+            return Response(
+                {"detail": "That reset link has expired."}, status=status.HTTP_400_BAD_REQUEST
+            )
+        user.set_password(serializer.validated_data["new_password"])
+        user.save(update_fields=["password"])
+        return Response({"detail": "Password reset. You can sign in now."})
+
+
+class AddressViewSet(viewsets.ModelViewSet):
+    serializer_class = AddressSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+    filter_backends = []
+
+    def get_queryset(self):
+        return Address.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)

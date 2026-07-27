@@ -1,0 +1,96 @@
+{% extends "dashboard/base.html" %}
+
+{% block actions %}
+  <a class="btn btn--ghost" href="{% url 'dashboard:review_list' %}">Back to reviews</a>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid--2">
+  {# ---------------------------------------------------------------- current review #}
+  <div class="card">
+    <div class="card__head">
+      <div>
+        <h2 class="card__title">
+          <a href="{% url 'dashboard:product_edit' review.product_id %}">{{ review.product.name }}</a>
+        </h2>
+        <p class="card__hint">
+          {{ review.author_name }}{% if review.author_location %} · {{ review.author_location }}{% endif %}
+          {% if review.is_verified %} · <span class="badge badge--ok">Verified purchase</span>{% endif %}
+        </p>
+      </div>
+      {% if review.status == 'approved' %}<span class="badge badge--ok">Published</span>
+      {% elif review.status == 'rejected' %}<span class="badge badge--warn">Changes requested</span>
+      {% else %}<span class="badge badge--warn">Pending</span>{% endif %}
+    </div>
+
+    <p class="nowrap" style="font-size:20px">
+      {% for _ in "12345"|make_list %}{% if forloop.counter <= review.rating %}★{% else %}<span class="muted">☆</span>{% endif %}{% endfor %}
+    </p>
+    {% if review.title %}<p><strong>{{ review.title }}</strong></p>{% endif %}
+    <p class="small">{{ review.body|linebreaksbr }}</p>
+
+    {% if review.status == 'rejected' and review.rejection_reason %}
+      <p class="subhead" style="margin-top:16px">Last reason sent to the shopper</p>
+      <p class="small">{{ review.rejection_reason }}</p>
+    {% endif %}
+
+    <p class="subhead" style="margin-top:16px">Shopper's edit window</p>
+    {% if review.is_editable %}
+      <p class="small">The shopper can still edit &amp; resubmit until
+        <strong>{{ review.edit_deadline|date:"j M Y, H:i" }}</strong>
+        ({{ review.edit_deadline|timeuntil }} left).</p>
+    {% else %}
+      <p class="small muted">Locked — the 24-hour edit window closed on
+        {{ review.edit_deadline|date:"j M Y, H:i" }}.</p>
+    {% endif %}
+
+    {% if review.status != 'approved' %}
+    <div class="inline" style="margin-top:20px;gap:8px">
+      <form method="post" action="{% url 'dashboard:review_moderate' review.pk 'approve' %}">
+        {% csrf_token %}<button class="btn btn--primary" type="submit">Approve &amp; publish</button>
+      </form>
+    </div>
+    {% endif %}
+
+    {# ---- request changes (reason required) ---- #}
+    <form method="post" action="{% url 'dashboard:review_moderate' review.pk 'reject' %}" style="margin-top:20px">
+      {% csrf_token %}
+      <label class="field">
+        <span class="field__label">Request changes — tell the shopper what to fix</span>
+        <textarea name="reason" class="input input--area" rows="3" required
+          placeholder="e.g. Please remove contact details / keep it about the product."></textarea>
+      </label>
+      <button class="btn" type="submit">Send back for changes</button>
+    </form>
+  </div>
+
+  {# ---------------------------------------------------------------- history #}
+  <div class="card">
+    <h2 class="card__title">History</h2>
+    <p class="card__hint">Every submission and decision is kept — the shopper sees this too.</p>
+    <ol class="timeline">
+      {% for event in review.events.all %}
+        <li class="timeline__item">
+          <div class="timeline__head">
+            <strong>
+              {% if event.action == 'submitted' %}Submitted
+              {% elif event.action == 'resubmitted' %}Resubmitted
+              {% elif event.action == 'approved' %}Approved &amp; published
+              {% elif event.action == 'rejected' %}Changes requested{% endif %}
+            </strong>
+            <span class="muted small">{{ event.created_at|date:"j M Y, H:i" }}{% if event.actor %} · {{ event.actor.get_full_name|default:event.actor.email }}{% endif %}</span>
+          </div>
+          {% if event.reason %}<p class="small">“{{ event.reason }}”</p>{% endif %}
+          {% if event.rating %}
+            <p class="small muted">
+              {% for _ in "12345"|make_list %}{% if forloop.counter <= event.rating %}★{% else %}☆{% endif %}{% endfor %}
+              {% if event.title %} · <strong>{{ event.title }}</strong>{% endif %}
+            </p>
+            {% if event.body %}<p class="small muted">{{ event.body|truncatewords:40 }}</p>{% endif %}
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ol>
+  </div>
+</div>
+{% endblock %}

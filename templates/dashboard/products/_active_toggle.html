@@ -1,0 +1,6 @@
+<form hx-post="{% url 'dashboard:product_toggle' product.pk %}" hx-swap="outerHTML" hx-target="this">
+  {% csrf_token %}
+  <button class="badge {% if product.is_active %}badge--ok{% endif %}" type="submit" style="cursor:pointer">
+    {% if product.is_active %}Active{% else %}Hidden{% endif %}
+  </button>
+</form>

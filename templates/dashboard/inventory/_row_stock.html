@@ -1,0 +1,7 @@
+{% if variant.stock_quantity == 0 %}
+  <span class="badge badge--danger">Out of stock</span>
+{% elif variant.is_low_stock %}
+  <span class="badge badge--warn">Low · {{ variant.stock_quantity }}</span>
+{% else %}
+  <span class="badge badge--ok">{{ variant.stock_quantity }} in stock</span>
+{% endif %}

@@ -1,0 +1,44 @@
+{% extends "dashboard/base.html" %}
+
+{% block content %}
+<form class="toolbar" method="get">
+  <select class="input" name="status">
+    <option value="">All statuses</option>
+    {% for value, label in statuses %}
+      <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn btn--sm" type="submit">Filter</button>
+  <a class="btn btn--ghost btn--sm" href="{% url 'dashboard:return_list' %}">Reset</a>
+</form>
+
+<div class="card">
+  {% if returns %}
+  <table class="table">
+    <thead>
+      <tr><th>Return</th><th>Order</th><th>Requested</th><th>Customer</th><th>Reason</th><th class="right">Items</th><th class="right">Refund</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      {% for ret in returns %}
+      <tr>
+        <td class="mono">{{ ret.number }}</td>
+        <td><a class="mono" href="{% url 'dashboard:order_detail' ret.order.number %}">{{ ret.order.number }}</a></td>
+        <td class="small muted nowrap">{{ ret.created_at|date:"j M Y, H:i" }}</td>
+        <td class="small">
+          {% if ret.user %}{{ ret.user.full_name }}{% else %}{{ ret.order.email }}{% endif %}
+          <div class="muted">{{ ret.order.email }}</div>
+        </td>
+        <td class="small">{{ ret.get_reason_display }}</td>
+        <td class="right">{{ ret.item_count }}</td>
+        <td class="right nowrap">£{{ ret.refund_total|floatformat:2 }}</td>
+        <td><span class="badge {% if ret.status == 'approved' %}badge--ok{% elif ret.status == 'rejected' %}badge--danger{% else %}badge--warn{% endif %}">{{ ret.get_status_display }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% include "dashboard/_pagination.html" with page=returns %}
+  {% else %}
+    <div class="empty"><p class="empty__title">No returns</p><p>Return requests raised by customers appear here for you to approve or reject.</p></div>
+  {% endif %}
+</div>
+{% endblock %}
