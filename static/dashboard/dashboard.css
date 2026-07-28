@@ -97,6 +97,9 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 400; margin: 0; }
   font-family: var(--serif); font-size: 14px; letter-spacing: .5px;
 }
 .brand__name { font-family: var(--serif); font-size: 19px; letter-spacing: .3px; }
+/* The sidebar is always dark, but dark mode re-points --lavender-soft to a dark
+   value — so the "LH" mark would be dark-on-dark. Use a light lavender there. */
+:root[data-theme="dark"] .brand__mark { color: var(--lavender); border-color: var(--lavender); }
 
 .nav { flex: 1; padding: 6px 12px 20px; }
 .nav__label {
@@ -182,7 +185,8 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 400; margin: 0; }
 .grid--2 { grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); }
 .grid--3 { grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); }
 
-.kpi { background: var(--surface); border: 1px solid var(--line); padding: 20px 22px; }
+.kpi { display: block; background: var(--surface); border: 1px solid var(--line); padding: 20px 22px; color: inherit; text-decoration: none; transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease; }
+a.kpi:hover { border-color: var(--lavender-soft); box-shadow: 0 3px 12px rgba(0, 0, 0, .06); transform: translateY(-1px); }
 .kpi__label { font-size: 11px; letter-spacing: 2.2px; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
 .kpi__value { font-family: var(--serif); font-size: 36px; line-height: 1; }
 .kpi__meta { font-size: 12.5px; color: var(--muted); margin: 8px 0 0; }

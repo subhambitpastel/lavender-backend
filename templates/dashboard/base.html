@@ -10,7 +10,8 @@
       var KEY = "lh_dash_theme";
       var saved;
       try { saved = localStorage.getItem(KEY); } catch (e) {}
-      var theme = saved === "dark" || saved === "light" ? saved : "light";
+      // Dark is the default; a saved "light" choice overrides it.
+      var theme = saved === "light" ? "light" : "dark";
       document.documentElement.setAttribute("data-theme", theme);
       function sync(t) {
         document.querySelectorAll("[data-theme-toggle]").forEach(function (b) {
@@ -74,6 +75,9 @@
     <a class="nav__link {% if 'journal' in request.resolver_match.url_name %}is-active{% endif %}" href="{% url 'dashboard:journal_list' %}">Journal</a>
     <a class="nav__link {% if 'content' in request.resolver_match.url_name or 'home_section' in request.resolver_match.url_name %}is-active{% endif %}" href="{% url 'dashboard:content_settings' %}">Site &amp; homepage</a>
     <a class="nav__link {% if 'newsletter' in request.resolver_match.url_name %}is-active{% endif %}" href="{% url 'dashboard:newsletter_list' %}">Newsletter</a>
+    <a class="nav__link {% if 'contact' in request.resolver_match.url_name %}is-active{% endif %}" href="{% url 'dashboard:contact_list' %}">
+      Messages {% if nav_pending_messages %}<span class="pill">{{ nav_pending_messages }}</span>{% endif %}
+    </a>
   </nav>
 
   <div class="sidebar__foot">

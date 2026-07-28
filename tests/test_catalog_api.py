@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import pytest
 
 from tests import factories
@@ -57,6 +59,16 @@ class TestProductList:
         factories.ProductFactory(name="Dear", base_price=900)
         response = api.get("/api/v1/products/?ordering=base_price")
         assert response.data["results"][0]["name"] == "Cheap"
+
+    def test_top_rated_breaks_ties_on_review_count(self, api, db):
+        """Equal star ratings are ranked by how many reviews back them up."""
+        factories.ProductFactory(name="One review", rating_avg=Decimal("5.00"), review_count=1)
+        factories.ProductFactory(name="Three reviews", rating_avg=Decimal("5.00"), review_count=3)
+        factories.ProductFactory(name="Lower rated", rating_avg=Decimal("4.50"), review_count=99)
+
+        response = api.get("/api/v1/products/?ordering=-rating_avg,-review_count")
+        names = [p["name"] for p in response.data["results"]]
+        assert names == ["Three reviews", "One review", "Lower rated"]
 
     def test_search(self, api, product):
         factories.ProductFactory(name="Completely Different")

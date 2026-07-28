@@ -37,18 +37,40 @@
     <div class="card">
       <h2 class="card__title">Categories</h2>
       <p class="card__hint">Shown as filter pills on the journal index.</p>
-      {% for category in categories %}
-        <p class="small">{{ category.name }} <span class="muted mono">{{ category.slug }}</span></p>
-      {% empty %}<p class="muted small">None yet.</p>{% endfor %}
+      <table class="table table--compact">
+        <thead><tr><th>Name</th><th>Slug</th><th class="right">Order</th><th></th></tr></thead>
+        <tbody>
+        {% for category in categories %}
+          <tr>
+            <td>{{ category.name }}</td>
+            <td class="small muted mono">{{ category.slug }}</td>
+            <td class="right small muted">{{ category.sort_order }}</td>
+            <td class="right nowrap">
+              <a class="small" href="?edit={{ category.pk }}">Edit</a>
+              <form method="post" action="{% url 'dashboard:journal_category_delete' category.pk %}" style="display:inline"
+                    data-confirm="Delete “{{ category.name }}”? Its posts become uncategorised.">
+                {% csrf_token %}<button class="linkbtn linkbtn--danger" type="submit">Delete</button>
+              </form>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4" class="muted small">None yet.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
 
-      <form method="post" action="{% url 'dashboard:journal_category_create' %}" style="margin-top:16px">
+      <form method="post" action="{% url 'dashboard:journal_list' %}" style="margin-top:16px">
         {% csrf_token %}
+        <input type="hidden" name="pk" value="{{ category_form.instance.pk|default_if_none:'' }}">
+        <p class="subhead">{% if editing_category %}Edit “{{ editing_category.name }}”{% else %}Add category{% endif %}</p>
         {% for field in category_form %}
           <label class="field">
             <span class="field__label">{{ field.label }}{% required_star field %}</span>{{ field }}
+            {% for error in field.errors %}<span class="field__error">{{ error }}</span>{% endfor %}
           </label>
         {% endfor %}
-        <button class="btn btn--sm" type="submit">Add category</button>
+        <button class="btn btn--sm" type="submit">{% if editing_category %}Save changes{% else %}Add category{% endif %}</button>
+        {% if editing_category %}<a class="btn btn--ghost btn--sm" href="{% url 'dashboard:journal_list' %}">Cancel</a>{% endif %}
       </form>
     </div>
   </div>

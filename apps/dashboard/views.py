@@ -14,6 +14,7 @@ from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from apps.accounts.models import Address
@@ -961,6 +962,19 @@ def review_moderate(request, pk, action):
 
 @staff_required
 def journal_list(request):
+    # The categories panel doubles as a create/edit form: ?edit=<pk> loads a row,
+    # a POST (with hidden pk) saves it — same pattern as the taxonomy screens.
+    instance = _edit_instance(request, JournalCategory)
+    if request.method == "POST":
+        form = dash_forms.JournalCategoryForm(request.POST, instance=instance)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Category saved.")
+            return redirect("dashboard:journal_list")
+        messages.error(request, "Please correct the errors below.")
+    else:
+        form = dash_forms.JournalCategoryForm(instance=instance)
+
     return render(
         request,
         "dashboard/journal/list.html",
@@ -968,7 +982,8 @@ def journal_list(request):
             "page_title": "Journal",
             "posts": paginate(request, JournalPost.objects.select_related("category")),
             "categories": JournalCategory.objects.all(),
-            "category_form": dash_forms.JournalCategoryForm(),
+            "category_form": form,
+            "editing_category": instance,
         },
     )
 
@@ -1006,11 +1021,11 @@ def journal_delete(request, pk):
 
 @staff_required
 @require_POST
-def journal_category_create(request):
-    form = dash_forms.JournalCategoryForm(request.POST)
-    if form.is_valid():
-        form.save()
-        messages.success(request, "Category added.")
+def journal_category_delete(request, pk):
+    # Posts point at the category with on_delete=SET_NULL, so they simply become
+    # uncategorised — deleting a category never removes any journal post.
+    get_object_or_404(JournalCategory, pk=pk).delete()
+    messages.success(request, "Category deleted.")
     return redirect("dashboard:journal_list")
 
 
@@ -1115,9 +1130,35 @@ def newsletter_export(request):
 
 
 @staff_required
+def contact_message_list(request):
+    """Every message sent through the storefront contact form."""
+    show = request.GET.get("show", "open")  # open | all
+    queryset = ContactMessage.objects.all()
+    if show != "all":
+        queryset = queryset.filter(is_handled=False)
+    return render(
+        request,
+        "dashboard/messages/list.html",
+        {
+            "page_title": "Messages",
+            "messages_page": paginate(request, queryset, 25),
+            "show": show,
+            "open_count": ContactMessage.objects.filter(is_handled=False).count(),
+            "total_count": ContactMessage.objects.count(),
+        },
+    )
+
+
+@staff_required
 @require_POST
 def contact_message_handled(request, pk):
     message = get_object_or_404(ContactMessage, pk=pk)
-    message.is_handled = True
+    message.is_handled = not message.is_handled
     message.save(update_fields=["is_handled", "updated_at"])
-    return redirect("dashboard:newsletter_list")
+    # Return to whichever page the action was triggered from (Messages or Newsletter).
+    ref = request.META.get("HTTP_REFERER", "")
+    if ref and url_has_allowed_host_and_scheme(
+        ref, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return redirect(ref)
+    return redirect("dashboard:contact_list")

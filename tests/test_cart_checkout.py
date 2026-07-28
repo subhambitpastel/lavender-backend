@@ -228,6 +228,59 @@ class TestCheckout:
         discount.refresh_from_db()
         assert discount.used_count == 1
 
+    def test_a_customer_cannot_reuse_a_discount_code(self, api, variant, checkout_payload):
+        factories.DiscountFactory(code="SOFT10", value=10)
+
+        # First order with the code succeeds (guest, shopper@example.com).
+        first = add_to_cart(api, variant, 1).data["token"]
+        api.post("/api/v1/cart/apply-discount/", {"code": "SOFT10"}, format="json",
+                 HTTP_X_CART_TOKEN=str(first))
+        ok = api.post("/api/v1/checkout/", checkout_payload, format="json",
+                      HTTP_X_CART_TOKEN=str(first))
+        assert ok.status_code == 201
+
+        # The same shopper (matched by email) tries the same code again — refused.
+        second = add_to_cart(api, variant, 1).data["token"]
+        api.post("/api/v1/cart/apply-discount/", {"code": "SOFT10"}, format="json",
+                 HTTP_X_CART_TOKEN=str(second))
+        clash = api.post("/api/v1/checkout/", checkout_payload, format="json",
+                         HTTP_X_CART_TOKEN=str(second))
+        assert clash.status_code == 400
+        assert clash.data["code"] == "discount_used"
+        assert Order.objects.filter(discount_code="SOFT10").count() == 1
+
+    def test_signed_in_customer_cannot_reuse_a_code_even_with_a_new_email(
+        self, api, user, variant, checkout_payload
+    ):
+        factories.DiscountFactory(code="WELCOME15", value=15)
+        api.force_authenticate(user)
+
+        # User A places their first order with WELCOME15.
+        first = add_to_cart(api, variant, 1).data["token"]
+        ok = api.post(
+            "/api/v1/checkout/",
+            {**checkout_payload, "discount_code": "WELCOME15"},
+            format="json",
+            HTTP_X_CART_TOKEN=str(first),
+        )
+        assert ok.status_code == 201
+
+        # Same account tries again — even typing a different contact email is
+        # refused, because the redemption is tied to their user, not just email.
+        second = add_to_cart(api, variant, 1).data["token"]
+        clash = api.post(
+            "/api/v1/checkout/",
+            {
+                **checkout_payload,
+                "contact": {"email": "another@example.com", "phone": ""},
+                "discount_code": "WELCOME15",
+            },
+            format="json",
+            HTTP_X_CART_TOKEN=str(second),
+        )
+        assert clash.status_code == 400
+        assert clash.data["code"] == "discount_used"
+
 
 @pytest.mark.django_db
 class TestOrderLifecycle:

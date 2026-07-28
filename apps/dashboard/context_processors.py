@@ -7,6 +7,7 @@ def dashboard_context(request):
         return {}
 
     from apps.catalog.models import Review
+    from apps.marketing.models import ContactMessage
     from apps.orders.models import Order, Return
 
     return {
@@ -22,4 +23,5 @@ def dashboard_context(request):
         "nav_pending_returns": Return.objects.filter(
             status=Return.Status.REQUESTED
         ).count(),
+        "nav_pending_messages": ContactMessage.objects.filter(is_handled=False).count(),
     }

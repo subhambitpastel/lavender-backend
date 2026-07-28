@@ -55,6 +55,7 @@ class ProductViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.
         "created_at",
         "base_price",
         "rating_avg",
+        "review_count",
         "name",
         "sort_order",
         "is_bestseller",
@@ -85,7 +86,12 @@ class ProductViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.
             OpenApiParameter("new_in", bool),
             OpenApiParameter("search", str),
             OpenApiParameter(
-                "ordering", str, description="-created_at | base_price | -rating_avg | name"
+                "ordering",
+                str,
+                description=(
+                    "-created_at | base_price | -rating_avg | -review_count | name. "
+                    "Comma-separate to break ties, e.g. `-rating_avg,-review_count`."
+                ),
             ),
         ]
     )

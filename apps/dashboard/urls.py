@@ -64,7 +64,7 @@ urlpatterns = [
     path("journal/new/", views.journal_form, name="journal_create"),
     path("journal/<int:pk>/edit/", views.journal_form, name="journal_edit"),
     path("journal/<int:pk>/delete/", views.journal_delete, name="journal_delete"),
-    path("journal/categories/add/", views.journal_category_create, name="journal_category_create"),
+    path("journal/categories/<int:pk>/delete/", views.journal_category_delete, name="journal_category_delete"),
 
     # content
     path("content/", views.content_settings, name="content_settings"),
@@ -75,5 +75,6 @@ urlpatterns = [
     # newsletter
     path("newsletter/", views.newsletter_list, name="newsletter_list"),
     path("newsletter/export/", views.newsletter_export, name="newsletter_export"),
+    path("messages/", views.contact_message_list, name="contact_list"),
     path("newsletter/messages/<int:pk>/handled/", views.contact_message_handled, name="contact_handled"),
 ]

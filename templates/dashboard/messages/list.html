@@ -1,0 +1,53 @@
+{% extends "dashboard/base.html" %}
+
+{% block actions %}
+  <a class="btn btn--sm {% if show != 'all' %}btn--primary{% else %}btn--ghost{% endif %}"
+     href="{% url 'dashboard:contact_list' %}?show=open">Open <span class="badge">{{ open_count }}</span></a>
+  <a class="btn btn--sm {% if show == 'all' %}btn--primary{% else %}btn--ghost{% endif %}"
+     href="{% url 'dashboard:contact_list' %}?show=all">All <span class="badge">{{ total_count }}</span></a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h2 class="card__title">Contact enquiries</h2>
+  <p class="card__hint">Messages sent through the storefront contact form.</p>
+  <table class="table">
+    <thead>
+      <tr><th>From</th><th>Subject &amp; message</th><th>Received</th><th class="right">Status</th></tr>
+    </thead>
+    <tbody>
+    {% for message in messages_page %}
+      <tr>
+        <td>
+          {{ message.name }}
+          <div class="small muted"><a href="mailto:{{ message.email }}">{{ message.email }}</a></div>
+        </td>
+        <td>
+          <strong>{{ message.subject|default:"Enquiry" }}</strong>
+          <div class="small" style="max-width:60ch">{{ message.message }}</div>
+        </td>
+        <td class="small muted nowrap">{{ message.created_at|date:"j M Y, H:i" }}</td>
+        <td class="right nowrap">
+          {% if message.is_handled %}
+            <span class="badge badge--ok">Handled</span>
+            <form method="post" action="{% url 'dashboard:contact_handled' message.pk %}" style="display:inline">
+              {% csrf_token %}<button class="linkbtn" type="submit">Reopen</button>
+            </form>
+          {% else %}
+            <span class="badge badge--warn">Open</span>
+            <form method="post" action="{% url 'dashboard:contact_handled' message.pk %}" style="display:inline">
+              {% csrf_token %}<button class="linkbtn" type="submit">Mark handled</button>
+            </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="4" class="muted small">
+        {% if show == 'all' %}No messages yet.{% else %}No open messages — you're all caught up.{% endif %}
+      </td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% include "dashboard/_pagination.html" with page=messages_page %}
+</div>
+{% endblock %}

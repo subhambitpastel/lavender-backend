@@ -147,6 +147,11 @@ class CartDiscountView(CartMixin, APIView):
                 {"detail": reason, "code": "invalid_discount"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        if discount.redeemed_by(user=request.user):
+            return Response(
+                {"detail": "You've already used this promo code.", "code": "discount_used"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         cart.discount = discount
         cart.save(update_fields=["discount", "updated_at"])
         return self.cart_payload(request, cart, extra={"detail": f"{code} applied."})

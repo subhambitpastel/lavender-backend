@@ -55,6 +55,33 @@ class Discount(TimeStamped):
             return money(subtotal * self.value / Decimal("100"))
         return money(min(self.value, subtotal))
 
+    def redeemed_by(self, *, user=None, email="") -> bool:
+        """True if this shopper has already used this code — one redemption per
+        customer, matched by their account and/or the email on the order.
+
+        Cancelled, refunded and unpaid (draft) orders never actually consumed the
+        code, so they don't count and the customer may try again.
+        """
+        who = models.Q()
+        if user is not None and getattr(user, "is_authenticated", False):
+            who |= models.Q(user=user)
+        if email:
+            who |= models.Q(email__iexact=email)
+        if not who:
+            return False
+        return (
+            Order.objects.filter(discount_code=self.code)
+            .exclude(
+                status__in=[
+                    Order.Status.DRAFT,
+                    Order.Status.CANCELLED,
+                    Order.Status.REFUNDED,
+                ]
+            )
+            .filter(who)
+            .exists()
+        )
+
 
 class OrderQuerySet(models.QuerySet):
     def paid(self):

@@ -9,7 +9,8 @@
     (function () {
       var t;
       try { t = localStorage.getItem("lh_dash_theme"); } catch (e) {}
-      document.documentElement.setAttribute("data-theme", t === "dark" ? "dark" : "light");
+      // Dark by default; only an explicit saved "light" choice opts out.
+      document.documentElement.setAttribute("data-theme", t === "light" ? "light" : "dark");
     })();
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">

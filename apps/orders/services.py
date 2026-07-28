@@ -111,6 +111,13 @@ def place_order(*, cart, data, user=None, request=None) -> Order:
         ok, reason = discount_obj.is_valid(subtotal)
         if not ok:
             raise CheckoutError(reason, code="invalid_discount")
+        buyer_email = (data.get("contact") or {}).get("email") or (
+            user.email if user and getattr(user, "is_authenticated", False) else ""
+        )
+        if discount_obj.redeemed_by(user=user, email=buyer_email):
+            raise CheckoutError(
+                "You've already used this promo code.", code="discount_used"
+            )
         discount_total = discount_obj.amount_for(subtotal)
 
     method = data.get("shipping_method") or Order.ShippingMethod.STANDARD

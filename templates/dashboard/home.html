@@ -8,36 +8,36 @@
 
 {% block content %}
 <div class="grid grid--kpi">
-  <div class="kpi">
+  <a class="kpi" href="{% url 'dashboard:order_list' %}">
     <p class="kpi__label">Orders today</p>
     <p class="kpi__value">{{ today_count }}</p>
     <p class="kpi__meta">£{{ today_revenue|floatformat:2|intcomma }} revenue</p>
-  </div>
-  <div class="kpi">
+  </a>
+  <a class="kpi" href="{% url 'dashboard:order_list' %}">
     <p class="kpi__label">Last 7 days</p>
     <p class="kpi__value">{{ week_count }}</p>
     <p class="kpi__meta">£{{ week_revenue|floatformat:2|intcomma }} revenue</p>
-  </div>
-  <div class="kpi {% if pending_orders %}kpi--accent{% endif %}">
+  </a>
+  <a class="kpi {% if pending_orders %}kpi--accent{% endif %}" href="{% url 'dashboard:order_list' %}?status=confirmed">
     <p class="kpi__label">Awaiting action</p>
     <p class="kpi__value">{{ pending_orders|add:awaiting_fulfilment }}</p>
     <p class="kpi__meta">{{ pending_orders }} pending · {{ awaiting_fulfilment }} to fulfil</p>
-  </div>
-  <div class="kpi">
+  </a>
+  <a class="kpi" href="{% url 'dashboard:customer_list' %}">
     <p class="kpi__label">New customers</p>
     <p class="kpi__value">{{ new_customers }}</p>
     <p class="kpi__meta">{{ subscriber_count }} newsletter subscribers</p>
-  </div>
-  <div class="kpi {% if low_stock_count %}kpi--accent{% endif %}">
+  </a>
+  <a class="kpi {% if low_stock_count %}kpi--accent{% endif %}" href="{% url 'dashboard:inventory' %}?low=1">
     <p class="kpi__label">Low stock SKUs</p>
     <p class="kpi__value">{{ low_stock_count }}</p>
     <p class="kpi__meta">{{ product_count }} active products</p>
-  </div>
-  <div class="kpi {% if pending_reviews %}kpi--accent{% endif %}">
+  </a>
+  <a class="kpi {% if pending_reviews %}kpi--accent{% endif %}" href="{% url 'dashboard:review_list' %}">
     <p class="kpi__label">Reviews to moderate</p>
     <p class="kpi__value">{{ pending_reviews }}</p>
-    <p class="kpi__meta"><a href="{% url 'dashboard:review_list' %}">Moderate now</a></p>
-  </div>
+    <p class="kpi__meta">Moderate now →</p>
+  </a>
 </div>
 
 <div class="grid grid--2" style="margin-top:20px">
