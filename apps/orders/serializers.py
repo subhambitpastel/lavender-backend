@@ -125,12 +125,19 @@ class OrderSerializer(serializers.ModelSerializer):
     is_returnable = serializers.BooleanField(read_only=True)
     return_window_ends = serializers.DateTimeField(read_only=True)
     returns = ReturnSerializer(many=True, read_only=True)
+    # True when the order belongs to a passwordless guest account the shopper can
+    # still finish (set a password) — drives the "create your account" prompt.
+    account_claimable = serializers.SerializerMethodField()
+
+    def get_account_claimable(self, obj):
+        return bool(obj.user_id and not obj.user.has_usable_password())
 
     class Meta:
         model = Order
         fields = (
             "number",
             "email",
+            "account_claimable",
             "phone",
             "status",
             "status_display",
@@ -161,8 +168,10 @@ class OrderSerializer(serializers.ModelSerializer):
 
 
 class AddressInputSerializer(serializers.Serializer):
-    first_name = serializers.CharField(max_length=100)
-    last_name = serializers.CharField(max_length=100)
+    # Name is collected after the order (on the confirmation page), so it may be
+    # blank at checkout — the address still ships; the name is backfilled later.
+    first_name = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
+    last_name = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
     line1 = serializers.CharField(max_length=255)
     line2 = serializers.CharField(max_length=255, required=False, allow_blank=True)
     city = serializers.CharField(max_length=120)

@@ -171,6 +171,7 @@ class ProductCardSerializer(serializers.ModelSerializer):
     badge = serializers.CharField(read_only=True)
     in_stock = serializers.BooleanField(read_only=True)
     primary_image = serializers.SerializerMethodField()
+    hover_image = serializers.SerializerMethodField()
     colours = serializers.SerializerMethodField()
     category = serializers.CharField(source="category.name", read_only=True)
     category_slug = serializers.CharField(source="category.slug", read_only=True)
@@ -192,6 +193,7 @@ class ProductCardSerializer(serializers.ModelSerializer):
             "rating_avg",
             "review_count",
             "primary_image",
+            "hover_image",
             "colours",
             "category",
             "category_slug",
@@ -202,6 +204,22 @@ class ProductCardSerializer(serializers.ModelSerializer):
         if not image:
             return None
         return ProductImageSerializer(image, context=self.context).data
+
+    def get_hover_image(self, obj):
+        """A second photo for the listing hover-swap: another shot of the cover
+        colour if there is one, else another colourway's cover image."""
+        primary = obj.primary_image
+        if not primary:
+            return None
+        for image in primary.colour.images.all():
+            if image.pk != primary.pk:
+                return ProductImageSerializer(image, context=self.context).data
+        for colour in obj.colours.all():
+            if colour.pk != primary.colour_id and colour.is_active:
+                alt = colour.primary_image
+                if alt:
+                    return ProductImageSerializer(alt, context=self.context).data
+        return None
 
     def get_colours(self, obj):
         colours = [c for c in obj.colours.all() if c.is_active]

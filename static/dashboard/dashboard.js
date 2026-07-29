@@ -24,9 +24,16 @@ document.addEventListener("DOMContentLoaded", function () {
 
 /* Jump to the first problem so it is never left off-screen below the fold. */
 function scrollToFirstError() {
+  // Only a populated error counts. The image-staging note reuses `.field__error`
+  // for its red styling but sits empty on a fresh form — without this filter it
+  // would hijack the scroll and open a new product part-way down the page.
+  const firstError = Array.prototype.find.call(
+    document.querySelectorAll(".field__error"),
+    function (el) { return el.textContent.trim() !== ""; },
+  );
   const target =
     document.querySelector("[data-error-summary]") ||
-    document.querySelector(".field__error") ||
+    firstError ||
     document.querySelector(".flash--error");
   if (!target) return;
 
@@ -38,8 +45,7 @@ function scrollToFirstError() {
   const jump = function () {
     target.scrollIntoView({ behavior: "smooth", block: "center" });
     // Focus the input the first error belongs to, so typing fixes it at once.
-    const field = document.querySelector(".field__error");
-    const owner = field && field.closest(".field, [data-colour-form]");
+    const owner = firstError && firstError.closest(".field, [data-colour-form]");
     const input = owner && owner.querySelector("input, select, textarea");
     if (input) input.focus({ preventScroll: true });
   };

@@ -17,6 +17,7 @@ from apps.cart.utils import merge_guest_cart
 from .models import Address
 from .serializers import (
     AddressSerializer,
+    CompleteAccountSerializer,
     EmailTokenObtainPairSerializer,
     PasswordChangeSerializer,
     PasswordResetConfirmSerializer,
@@ -51,6 +52,71 @@ class RegisterView(APIView):
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        merge_guest_cart(request, user)
+        refresh = RefreshToken.for_user(user)
+        return Response(
+            {
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+                "user": UserSerializer(user, context={"request": request}).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class CompleteAccountView(APIView):
+    """Turn the passwordless guest account from checkout into a real one.
+
+    Proof is the order number + email (the BFF passes them from the httpOnly
+    cookie set at checkout), so only the shopper who placed the order can finish
+    it. Returns JWTs so they're signed in immediately.
+    """
+
+    permission_classes = [AllowAny]
+
+    @extend_schema(request=CompleteAccountSerializer, responses=UserSerializer)
+    def post(self, request):
+        from apps.orders.models import Order
+
+        serializer = CompleteAccountSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        email = data["email"].lower()
+
+        order = Order.objects.filter(number=data["number"], email__iexact=email).first()
+        if order is None:
+            return Response(
+                {"detail": "We couldn't match that order.", "code": "no_order"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user = User.objects.filter(email__iexact=email).first()
+        if user is None:
+            return Response(
+                {"detail": "There's no account to complete for this order.", "code": "no_account"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if user.has_usable_password():
+            return Response(
+                {"detail": "You already have an account — please sign in.", "code": "account_exists"},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        user.set_password(data["password"])
+        user.first_name = data["first_name"]
+        user.last_name = data["last_name"]
+        user.is_active = True
+        user.save(update_fields=["password", "first_name", "last_name", "is_active"])
+
+        # The order shipped without a name (collected here) — backfill it so the
+        # delivery label is complete.
+        address = order.shipping_address or {}
+        if isinstance(address, dict) and not address.get("first_name"):
+            address["first_name"] = data["first_name"]
+            address["last_name"] = data["last_name"]
+            order.shipping_address = address
+            order.save(update_fields=["shipping_address", "updated_at"])
+
         merge_guest_cart(request, user)
         refresh = RefreshToken.for_user(user)
         return Response(

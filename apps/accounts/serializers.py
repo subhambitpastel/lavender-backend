@@ -119,6 +119,28 @@ class RegisterSerializer(serializers.ModelSerializer):
         return User.objects.create_user(**validated_data)
 
 
+class CompleteAccountSerializer(serializers.Serializer):
+    """Finish a guest account by setting a password.
+
+    Proof of ownership is the order number + email placed in this browser — the
+    BFF reads those from the httpOnly ``lh_last_order`` cookie, so only the
+    shopper who just checked out can complete their own account.
+    """
+
+    number = serializers.CharField()
+    email = serializers.EmailField()
+    first_name = serializers.CharField(max_length=150)
+    last_name = serializers.CharField(max_length=150)
+    password = serializers.CharField(write_only=True, validators=[validate_password])
+    password_confirm = serializers.CharField(write_only=True, required=False)
+
+    def validate(self, attrs):
+        confirm = attrs.pop("password_confirm", None)
+        if confirm is not None and confirm != attrs["password"]:
+            raise serializers.ValidationError({"password_confirm": "Passwords do not match."})
+        return attrs
+
+
 class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
     """Accept ``email`` instead of ``username`` and return the user alongside tokens."""
 

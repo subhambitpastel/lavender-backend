@@ -1,6 +1,9 @@
 {% extends "dashboard/base.html" %}
 
 {% block actions %}
+  {# Export honours the filters above, so you download exactly what you filtered to. #}
+  <a class="btn btn--ghost" href="{% url 'dashboard:product_export' %}{% if filter_query %}?{{ filter_query }}{% endif %}">Export as CSV</a>
+  <a class="btn btn--ghost" href="{% url 'dashboard:product_import' %}">Import CSV</a>
   <a class="btn btn--primary" href="{% url 'dashboard:product_create' %}">New product</a>
 {% endblock %}
 

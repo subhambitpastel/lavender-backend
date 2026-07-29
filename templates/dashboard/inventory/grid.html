@@ -2,57 +2,68 @@
 
 {% block actions %}
   <span class="badge badge--accent">{{ total_units }} units</span>
-  <a class="btn btn--ghost btn--sm" href="?low=1">Low ({{ low_count }})</a>
-  <a class="btn btn--ghost btn--sm" href="?out=1">Out ({{ out_count }})</a>
 {% endblock %}
 
 {% block content %}
 <form class="toolbar" method="get">
   <input class="input" type="search" name="q" value="{{ q }}" placeholder="Search by product, colour or SKU…">
-  <label class="inline small"><input class="check" type="checkbox" name="low" value="1" {% if request.GET.low %}checked{% endif %}> Low stock only</label>
-  <label class="inline small"><input class="check" type="checkbox" name="out" value="1" {% if request.GET.out %}checked{% endif %}> Out of stock only</label>
+  <select class="input" name="stock">
+    <option value="">All stock</option>
+    <option value="low" {% if current_stock == 'low' %}selected{% endif %}>Low stock ({{ low_count }})</option>
+    <option value="out" {% if current_stock == 'out' %}selected{% endif %}>Out of stock ({{ out_count }})</option>
+  </select>
   <button class="btn btn--sm" type="submit">Filter</button>
   <a class="btn btn--ghost btn--sm" href="{% url 'dashboard:inventory' %}">Reset</a>
 </form>
 
-<form method="post" action="{% url 'dashboard:inventory_bulk' %}">
-  {% csrf_token %}
-  <div class="card">
-    <div class="card__head">
-      <div>
-        <h2 class="card__title">Stock by SKU</h2>
-        <p class="card__hint">Edit any number and save the page, or use the inline save on a single row.</p>
-      </div>
-      <button class="btn btn--primary btn--sm" type="submit">Save all changes</button>
+<div class="card">
+  <div class="card__head">
+    <div>
+      <h2 class="card__title">Stock by SKU</h2>
+      <p class="card__hint">
+        Type how many units arrived under <strong>Add stock</strong> and click <strong>Add</strong> —
+        it's <strong>added</strong> to the current stock (the “In stock” number updates right there),
+        never replaced. Use a negative number to write stock off.
+      </p>
     </div>
-
-    {% if variants %}
-    <table class="table table--compact">
-      <thead>
-        <tr><th>Product</th><th>Colour</th><th>Size</th><th>SKU</th><th class="right">Stock left</th><th></th></tr>
-      </thead>
-      <tbody>
-        {% for variant in variants %}
-        <tr>
-          <td><a href="{% url 'dashboard:product_edit' variant.colour.product_id %}">{{ variant.colour.product.name }}</a></td>
-          <td class="small">
-            <span class="swatch" style="background: {{ variant.colour.swatch_hex }}; width:14px; height:14px; display:inline-block; vertical-align:middle"></span>
-            {{ variant.colour.name }}
-          </td>
-          <td>{{ variant.size.name }}</td>
-          <td class="mono muted">{{ variant.sku }}</td>
-          <td class="right">
-            <input class="input input--stock" type="number" min="0" name="stock_{{ variant.pk }}" value="{{ variant.stock_quantity }}">
-          </td>
-          <td id="row-stock-{{ variant.pk }}">{% include "dashboard/inventory/_row_stock.html" %}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% include "dashboard/_pagination.html" with page=variants %}
-    {% else %}
-      <div class="empty"><p class="empty__title">Nothing to show</p><p>No variants match those filters.</p></div>
-    {% endif %}
   </div>
-</form>
+
+  {% if variants %}
+  <table class="table table--compact">
+    <thead>
+      <tr><th>Product</th><th>Colour</th><th>Size</th><th>SKU</th><th class="right">In stock</th><th class="right">Add stock</th></tr>
+    </thead>
+    <tbody>
+      {% for variant in variants %}
+      <tr>
+        <td><a href="{% url 'dashboard:product_edit' variant.colour.product_id %}">{{ variant.colour.product.name }}</a></td>
+        <td class="small">
+          <span class="swatch" style="background: {{ variant.colour.swatch_hex }}; width:14px; height:14px; display:inline-block; vertical-align:middle"></span>
+          {{ variant.colour.name }}
+        </td>
+        <td>{{ variant.size.name }}</td>
+        <td class="mono muted">{{ variant.sku }}</td>
+        <td class="right" id="row-stock-{{ variant.pk }}">{% include "dashboard/inventory/_row_stock.html" %}</td>
+        <td class="right">
+          {# Inline add: HTMX updates the "In stock" cell in place; falls back to a
+             normal POST + redirect if HTMX isn't available. #}
+          <form method="post" action="{% url 'dashboard:inventory_quick' variant.pk %}"
+                hx-post="{% url 'dashboard:inventory_quick' variant.pk %}"
+                hx-target="#row-stock-{{ variant.pk }}" hx-swap="innerHTML"
+                hx-on::after-request="this.reset()"
+                class="inline" style="justify-content:flex-end; gap:6px">
+            {% csrf_token %}
+            <input class="input input--stock" type="number" name="add" placeholder="+ add">
+            <button class="btn btn--sm" type="submit">Add</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% include "dashboard/_pagination.html" with page=variants %}
+  {% else %}
+    <div class="empty"><p class="empty__title">Nothing to show</p><p>No variants match those filters.</p></div>
+  {% endif %}
+</div>
 {% endblock %}

@@ -40,6 +40,31 @@ def shipping_cost(subtotal: Decimal, method: str) -> Decimal:
     return money(settings.STANDARD_SHIPPING_FEE)
 
 
+def _ensure_guest_user(email, phone=""):
+    """Return an account to attribute a guest order to.
+
+    Creates a passwordless "guest" account for a new email so the order has a
+    home and the shopper can finish signing up later (name + password on the
+    confirmation page). If the email already has a *real* (password-set) account,
+    we never silently attach — return None and leave the order a pure guest order
+    (they can log in and claim it by lookup).
+    """
+    from django.contrib.auth import get_user_model
+
+    if not email:
+        return None
+    User = get_user_model()
+    existing = User.objects.filter(email__iexact=email).first()
+    if existing:
+        return existing if not existing.has_usable_password() else None
+    return User.objects.create_user(
+        email=email,
+        password=None,  # unusable password → a "guest" account until completed
+        phone=phone or "",
+        is_active=True,
+    )
+
+
 def _image_url(variant, request=None):
     image = variant.colour.primary_image
     if not image:
@@ -96,6 +121,13 @@ def place_order(*, cart, data, user=None, request=None) -> Order:
         )
     )
 
+    contact = data.get("contact") or {}
+    shipping_address = data.get("shipping") or {}
+    billing_address = data.get("billing") or shipping_address
+    buyer_email = contact.get("email") or (
+        user.email if user and getattr(user, "is_authenticated", False) else ""
+    )
+
     # ---------------------------------------------------------------- discount
     discount_total = Decimal("0.00")
     discount_obj = None
@@ -111,9 +143,6 @@ def place_order(*, cart, data, user=None, request=None) -> Order:
         ok, reason = discount_obj.is_valid(subtotal)
         if not ok:
             raise CheckoutError(reason, code="invalid_discount")
-        buyer_email = (data.get("contact") or {}).get("email") or (
-            user.email if user and getattr(user, "is_authenticated", False) else ""
-        )
         if discount_obj.redeemed_by(user=user, email=buyer_email):
             raise CheckoutError(
                 "You've already used this promo code.", code="discount_used"
@@ -126,13 +155,17 @@ def place_order(*, cart, data, user=None, request=None) -> Order:
     tax_total = money(taxable * Decimal(settings.TAX_RATE) / Decimal("100"))
     grand_total = money(taxable + shipping_total + tax_total)
 
-    contact = data.get("contact") or {}
-    shipping_address = data.get("shipping") or {}
-    billing_address = data.get("billing") or shipping_address
+    # A guest checkout still gets an account (with no password yet) so their orders
+    # live somewhere and they can finish signing up on the confirmation page.
+    order_user = (
+        user
+        if user and user.is_authenticated
+        else _ensure_guest_user(buyer_email, phone=contact.get("phone", ""))
+    )
 
     order = Order.objects.create(
-        user=user if (user and user.is_authenticated) else None,
-        email=contact.get("email") or (user.email if user and user.is_authenticated else ""),
+        user=order_user,
+        email=buyer_email,
         phone=contact.get("phone", ""),
         status=Order.Status.DRAFT,
         subtotal=subtotal,

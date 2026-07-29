@@ -2,7 +2,7 @@
 {% load humanize %}
 
 {% block actions %}
-  <a class="btn btn--ghost" href="{% url 'dashboard:inventory' %}?low=1">Low stock</a>
+  <a class="btn btn--ghost" href="{% url 'dashboard:inventory' %}?stock=low">Low stock</a>
   <a class="btn btn--primary" href="{% url 'dashboard:product_create' %}">New product</a>
 {% endblock %}
 
@@ -28,7 +28,7 @@
     <p class="kpi__value">{{ new_customers }}</p>
     <p class="kpi__meta">{{ subscriber_count }} newsletter subscribers</p>
   </a>
-  <a class="kpi {% if low_stock_count %}kpi--accent{% endif %}" href="{% url 'dashboard:inventory' %}?low=1">
+  <a class="kpi {% if low_stock_count %}kpi--accent{% endif %}" href="{% url 'dashboard:inventory' %}?stock=low">
     <p class="kpi__label">Low stock SKUs</p>
     <p class="kpi__value">{{ low_stock_count }}</p>
     <p class="kpi__meta">{{ product_count }} active products</p>
@@ -68,7 +68,7 @@
   <div class="card">
     <div class="card__head">
       <h2 class="card__title">Running low</h2>
-      <a class="small" href="{% url 'dashboard:inventory' %}?low=1">Manage stock</a>
+      <a class="small" href="{% url 'dashboard:inventory' %}?stock=low">Manage stock</a>
     </div>
     {% if low_stock %}
       <table class="table table--compact">

@@ -318,3 +318,70 @@ class TestOrderLifecycle:
         ).data["number"]
         response = api.get(f"/api/v1/orders/lookup/?number={number}&email=wrong@example.com")
         assert response.status_code == 404
+
+
+@pytest.mark.django_db
+class TestGuestAccounts:
+    def test_guest_checkout_creates_a_claimable_account(self, api, variant, checkout_payload):
+        from django.contrib.auth import get_user_model
+
+        token = add_to_cart(api, variant, 1).data["token"]
+        res = api.post(
+            "/api/v1/checkout/", checkout_payload, format="json", HTTP_X_CART_TOKEN=str(token)
+        )
+        assert res.status_code == 201
+        assert res.data["account_claimable"] is True
+        user = get_user_model().objects.get(email__iexact="shopper@example.com")
+        assert not user.has_usable_password()  # guest account
+        assert Order.objects.get().user_id == user.pk
+
+    def test_complete_guest_account_signs_in(self, api, variant, checkout_payload):
+        from django.contrib.auth import get_user_model
+
+        token = add_to_cart(api, variant, 1).data["token"]
+        number = api.post(
+            "/api/v1/checkout/", checkout_payload, format="json", HTTP_X_CART_TOKEN=str(token)
+        ).data["number"]
+
+        res = api.post(
+            "/api/v1/auth/complete",
+            {
+                "number": number,
+                "email": "shopper@example.com",
+                "first_name": "Test",
+                "last_name": "Buyer",
+                "password": "s3curePass!",
+            },
+            format="json",
+        )
+        assert res.status_code == 201
+        assert res.data["access"] and res.data["refresh"]
+        user = get_user_model().objects.get(email__iexact="shopper@example.com")
+        assert user.has_usable_password()  # now a real account
+        assert user.first_name == "Test"  # name captured after the order
+
+    def test_complete_rejects_a_mismatched_order(self, api, variant, checkout_payload):
+        token = add_to_cart(api, variant, 1).data["token"]
+        api.post("/api/v1/checkout/", checkout_payload, format="json", HTTP_X_CART_TOKEN=str(token))
+        res = api.post(
+            "/api/v1/auth/complete",
+            {
+                "number": "LH-9999-999999",
+                "email": "shopper@example.com",
+                "first_name": "Test",
+                "last_name": "Buyer",
+                "password": "s3curePass!",
+            },
+            format="json",
+        )
+        assert res.status_code == 400
+
+    def test_guest_checkout_never_attaches_to_a_real_account(self, api, user, variant, checkout_payload):
+        # `user` is a real (password-set) account for shopper@example.com.
+        token = add_to_cart(api, variant, 1).data["token"]
+        res = api.post(
+            "/api/v1/checkout/", checkout_payload, format="json", HTTP_X_CART_TOKEN=str(token)
+        )
+        assert res.status_code == 201
+        assert res.data["account_claimable"] is False
+        assert Order.objects.get().user_id is None

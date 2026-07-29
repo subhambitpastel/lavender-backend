@@ -410,14 +410,52 @@ class TestProductEditor:
         assert response.status_code == 302
         assert colour.images.count() == 2          # existing kept, new one appended
 
-    def test_inventory_bulk_update(self, client, staff, product):
+    def test_inventory_bulk_add_is_added_not_set(self, client, staff, product):
         client.force_login(staff)
         variant = product.colours.first().variants.first()
-        client.post(
-            reverse("dashboard:inventory_bulk"), {f"stock_{variant.pk}": "42"}
+        start = variant.stock_quantity  # seeded at 10
+        client.post(reverse("dashboard:inventory_bulk"), {f"add_{variant.pk}": "42"})
+        variant.refresh_from_db()
+        assert variant.stock_quantity == start + 42  # added, not overwritten
+
+    def test_inventory_bulk_negative_writes_off_but_not_below_zero(self, client, staff, product):
+        client.force_login(staff)
+        variant = product.colours.first().variants.first()
+        client.post(reverse("dashboard:inventory_bulk"), {f"add_{variant.pk}": "-999"})
+        variant.refresh_from_db()
+        assert variant.stock_quantity == 0
+
+    def test_inventory_blank_add_leaves_stock_untouched(self, client, staff, product):
+        client.force_login(staff)
+        variant = product.colours.first().variants.first()
+        start = variant.stock_quantity
+        client.post(reverse("dashboard:inventory_bulk"), {f"add_{variant.pk}": ""})
+        variant.refresh_from_db()
+        assert variant.stock_quantity == start
+
+    def test_inventory_inline_add_updates_in_place(self, client, staff, product):
+        client.force_login(staff)
+        variant = product.colours.first().variants.first()
+        start = variant.stock_quantity  # 10
+        response = client.post(
+            reverse("dashboard:inventory_quick", args=[variant.pk]),
+            {"add": "8"},
+            HTTP_HX_REQUEST="true",
         )
         variant.refresh_from_db()
-        assert variant.stock_quantity == 42
+        assert variant.stock_quantity == start + 8  # added, not replaced
+        assert str(start + 8).encode() in response.content  # badge shows the new number
+
+    def test_inventory_inline_add_without_htmx_redirects(self, client, staff, product):
+        client.force_login(staff)
+        variant = product.colours.first().variants.first()
+        start = variant.stock_quantity
+        response = client.post(
+            reverse("dashboard:inventory_quick", args=[variant.pk]), {"add": "3"}
+        )
+        variant.refresh_from_db()
+        assert variant.stock_quantity == start + 3
+        assert response.status_code == 302
 
     def test_toggling_active_from_the_list(self, client, staff, product):
         client.force_login(staff)

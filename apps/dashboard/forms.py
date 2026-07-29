@@ -340,9 +340,23 @@ class SiteSettingsForm(StyledFormMixin, forms.ModelForm):
             "currency",
         )
         widgets = {
-            "usp_items": forms.Textarea(attrs={"rows": 5, "class": "input input--area input--json"}),
-            "footer_links": forms.Textarea(attrs={"rows": 8, "class": "input input--area input--json"}),
-            "faqs": forms.Textarea(attrs={"rows": 10, "class": "input input--area input--json"}),
+            # data-editor turns each raw-JSON textarea into a friendly row editor
+            # (see static/dashboard/content-editors.js). The textarea stays as the
+            # value store and a raw-JSON fallback if the script can't run.
+            "usp_items": forms.Textarea(
+                attrs={"rows": 5, "class": "input input--area input--json", "data-editor": "usp"}
+            ),
+            "footer_links": forms.Textarea(
+                attrs={"rows": 8, "class": "input input--area input--json", "data-editor": "footer"}
+            ),
+            "faqs": forms.Textarea(
+                attrs={"rows": 10, "class": "input input--area input--json", "data-editor": "faq"}
+            ),
+        }
+        help_texts = {
+            "usp_items": "Trust badges shown across the storefront — pick an icon and write the label.",
+            "footer_links": "Columns of links in the site footer. Add columns and links, drag to reorder.",
+            "faqs": "Questions for the FAQ page. The group heading buckets related questions together.",
         }
 
 

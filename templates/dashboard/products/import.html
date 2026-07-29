@@ -1,0 +1,147 @@
+{% extends "dashboard/base.html" %}
+
+{% block actions %}
+  <a class="btn btn--ghost" href="{% url 'dashboard:product_export' %}">Export as CSV</a>
+  <a class="btn btn--ghost" href="{% url 'dashboard:product_list' %}">Back to products</a>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="padding:24px">
+  <h2 style="margin:0 0 6px">Update products from a spreadsheet</h2>
+  <p class="small muted" style="margin:0 0 20px; max-width:70ch">
+    Export the catalogue, edit it in Excel or Google Sheets, then upload it here.
+    The file has <strong>one row per SKU</strong> — that is, per colour and size —
+    so a product with three colours in four sizes takes twelve rows.
+  </p>
+
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <input class="input" type="file" name="file" accept=".csv,text/csv" required>
+    <div class="inline" style="gap:10px; margin-top:16px">
+      <button class="btn" name="dry_run" value="1" type="submit">Preview — don’t save</button>
+      <button class="btn btn--primary" name="apply" value="1" type="submit">Import &amp; save</button>
+    </div>
+    <p class="small muted" style="margin-top:10px; max-width:70ch">
+      <strong>Preview</strong> checks the file and lists what would change, without touching anything.
+      <strong>Import &amp; save</strong> applies the changes for real.
+    </p>
+  </form>
+</div>
+
+{% if report %}
+  <div class="card" style="padding:24px; margin-top:18px">
+    <h2 style="margin:0 0 10px">
+      {% if report.ok %}{% if report.dry_run %}Looks good{% else %}Import complete{% endif %}{% else %}Nothing was changed{% endif %}
+    </h2>
+    {% if report.ok %}
+      <p class="small">{{ report.summary }}</p>
+
+      {% if report.changes %}
+        <p class="small" style="margin:14px 0 4px">
+          <strong>{% if report.dry_run %}Would change{% else %}Changed{% endif %} ({{ report.changes|length }}):</strong>
+        </p>
+        <ul class="small mono" style="margin:0; padding-left:18px; line-height:1.8; max-height:360px; overflow:auto">
+          {% for change in report.changes|slice:":500" %}<li>{{ change }}</li>{% endfor %}
+        </ul>
+        {% if report.changes|length > 500 %}
+          <p class="small muted" style="margin-top:6px">…and {{ report.changes|length|add:"-500" }} more.</p>
+        {% endif %}
+      {% elif not report.dry_run %}
+        <p class="small muted" style="margin-top:8px">No values were different, so nothing changed.</p>
+      {% endif %}
+
+      {% if report.warnings %}
+        <p class="small" style="margin:12px 0 4px"><strong>Warnings{% if not report.dry_run %} — applied anyway{% endif %}:</strong></p>
+        <ul class="small" style="margin:0; padding-left:18px; line-height:1.8">
+          {% for warning in report.warnings %}<li>{{ warning }}</li>{% endfor %}
+        </ul>
+      {% endif %}
+      {% if can_apply_pending %}
+        <form method="post" style="margin-top:16px">
+          {% csrf_token %}
+          <button class="btn btn--primary" name="apply_pending" value="1" type="submit">
+            Apply {{ report.changes|length }} change{{ report.changes|length|pluralize }} now
+          </button>
+          <span class="small muted" style="margin-left:8px">No need to re-upload the file.</span>
+        </form>
+      {% elif report.dry_run and report.changes %}
+        <p class="small muted" style="margin-top:10px">
+          To apply these, upload the file again with <strong>Import &amp; save</strong>.
+        </p>
+      {% endif %}
+    {% else %}
+      <p class="small muted" style="margin:0 0 12px">
+        The whole file is applied at once, so every one of these has to be fixed
+        before anything is saved.
+      </p>
+      <ul class="small" style="margin:0; padding-left:18px; line-height:1.8">
+        {% for error in report.errors %}<li>{{ error }}</li>{% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+{% endif %}
+
+<div class="card" style="padding:24px; margin-top:18px">
+  <h2 style="margin:0 0 12px">How the file is read</h2>
+  <ul class="small" style="margin:0 0 22px; padding-left:18px; line-height:1.9">
+    <li><strong>An empty cell means “leave this alone.”</strong> To change only stock, keep just the
+      <span class="mono">slug</span>, <span class="mono">colour_name</span>, <span class="mono">size</span>
+      and <span class="mono">stock_quantity</span> columns and delete the rest.</li>
+    <li>To deliberately empty a field — clear a sale price, wipe a description — write
+      <span class="mono">CLEAR</span> in the cell.</li>
+    <li><span class="mono">slug</span> says which product a row belongs to and must already exist.
+      Import updates products; it doesn’t create them.</li>
+    <li>A <span class="mono">colour_name</span> or <span class="mono">size</span> the product doesn’t
+      have yet is added. Sizes themselves must exist under <a href="{% url 'dashboard:size_list' %}">Sizes</a> first.</li>
+    <li>Yes/no columns accept <span class="mono">yes</span>/<span class="mono">no</span>,
+      <span class="mono">true</span>/<span class="mono">false</span> or <span class="mono">1</span>/<span class="mono">0</span>.</li>
+    <li><span class="mono">collections</span> and <span class="mono">fabrics</span> hold several slugs
+      separated by a pipe: <span class="mono">bestsellers|new-arrivals</span>.</li>
+    <li>If any row is wrong the whole upload is rejected — you never get half an update.</li>
+  </ul>
+
+  <h3 style="margin:0 0 10px">Stock is added, not replaced</h3>
+  <p class="small muted" style="margin:0 0 18px; max-width:70ch">
+    Whatever you put in <span class="mono">stock_quantity</span> is <strong>added</strong> to what's
+    already on hand — so a product sitting at 20, uploaded with <span class="mono">100</span>, ends up
+    at <strong>120</strong>. Use a negative to write stock off (<span class="mono">-2</span> for
+    breakage). The current level is shown read-only in <span class="mono">stock_on_hand</span> (edits to
+    it are ignored), and the exported file leaves <span class="mono">stock_quantity</span> blank so
+    re-uploading it changes nothing.
+  </p>
+
+  <h3 style="margin:0 0 10px">Columns</h3>
+  <table class="table">
+    <thead><tr><th>Column</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">slug</td><td class="small">Which product this row is for. Required.</td></tr>
+      <tr><td class="mono">name</td><td class="small">Product title.</td></tr>
+      <tr><td class="mono">description</td><td class="small">The PDP description.</td></tr>
+      <tr><td class="mono">category</td><td class="small">Category slug (or exact name).</td></tr>
+      <tr><td class="mono">collections</td><td class="small">Pipe-separated collection slugs.</td></tr>
+      <tr><td class="mono">fabrics</td><td class="small">Pipe-separated fabric slugs.</td></tr>
+      <tr><td class="mono">base_price</td><td class="small">Selling price. Up to 2 decimal places.</td></tr>
+      <tr><td class="mono">compare_at_price</td><td class="small">Was-price; must be <em>higher</em> than <span class="mono">base_price</span>. Set it to put the product on sale, <span class="mono">CLEAR</span> to take it off.</td></tr>
+      <tr><td class="mono">composition</td><td class="small">“100% cashmere”, etc.</td></tr>
+      <tr><td class="mono">care_instructions</td><td class="small">Care copy.</td></tr>
+      <tr><td class="mono">sustainability_note</td><td class="small">Sustainability copy.</td></tr>
+      <tr><td class="mono">meta_title</td><td class="small">SEO title.</td></tr>
+      <tr><td class="mono">meta_description</td><td class="small">SEO description.</td></tr>
+      <tr><td class="mono">is_active</td><td class="small">Visible on the storefront.</td></tr>
+      <tr><td class="mono">is_featured</td><td class="small">Eligible for featured slots.</td></tr>
+      <tr><td class="mono">is_new_in</td><td class="small">Shows the “New in” badge.</td></tr>
+      <tr><td class="mono">is_bestseller</td><td class="small">Shows the “Bestseller” badge and sorts first under Featured.</td></tr>
+      <tr><td class="mono">sort_order</td><td class="small">Manual position; lower sorts first.</td></tr>
+      <tr><td class="mono">colour_name</td><td class="small">The colourway, e.g. “Oat”. Added if new.</td></tr>
+      <tr><td class="mono">colour_hex</td><td class="small">Swatch colour as a hex code, e.g. <span class="mono">#DCD3C6</span> (must be a valid hex).</td></tr>
+      <tr><td class="mono">colour_is_active</td><td class="small">Whether the colourway is shown.</td></tr>
+      <tr><td class="mono">size</td><td class="small">Size name, e.g. “M”. Must exist under Sizes.</td></tr>
+      <tr><td class="mono">sku</td><td class="small">Leave blank and one is generated. Must be unique across the file.</td></tr>
+      <tr><td class="mono">stock_on_hand</td><td class="small">Current stock, for reference only — shown on export, <strong>ignored</strong> on import.</td></tr>
+      <tr><td class="mono">stock_quantity</td><td class="small"><strong>Added</strong> to current stock (a whole number; negative writes off). 20 on hand + 100 = 120.</td></tr>
+      <tr><td class="mono">price_override</td><td class="small">Price for this one size only; <span class="mono">CLEAR</span> to fall back to <span class="mono">base_price</span>.</td></tr>
+      <tr><td class="mono">variant_is_active</td><td class="small">Whether this colour × size is sellable.</td></tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}

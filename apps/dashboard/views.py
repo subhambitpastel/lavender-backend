@@ -1,6 +1,7 @@
 """Custom staff dashboard — Django templates + HTMX, not django.contrib.admin."""
 
 import csv
+import io
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
@@ -18,6 +19,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from apps.accounts.models import Address
+from apps.catalog import csv_io as catalog_csv
 from apps.catalog.models import (
     Category,
     Collection,
@@ -233,8 +235,9 @@ def home(request):
 # -------------------------------------------------------------------- products
 
 
-@staff_required
-def product_list(request):
+def filtered_products(request):
+    """The product list's search/filter query — shared with the CSV export so the
+    download always matches what the owner is looking at."""
     queryset = (
         Product.objects.select_related("category")
         .prefetch_related("colours__variants", "colours__images")
@@ -242,8 +245,7 @@ def product_list(request):
         # Aggregation drops Meta ordering, so restate it for the paginator.
         .order_by("sort_order", "-created_at")
     )
-    q = request.GET.get("q", "").strip()
-    if q:
+    if q := request.GET.get("q", "").strip():
         queryset = queryset.filter(Q(name__icontains=q) | Q(slug__icontains=q))
     if category := request.GET.get("category"):
         queryset = queryset.filter(category__slug=category)
@@ -256,16 +258,106 @@ def product_list(request):
         queryset = queryset.filter(is_active=False)
     elif state == "sale":
         queryset = queryset.filter(compare_at_price__gt=F("base_price"))
+    return queryset
 
+
+@staff_required
+def product_list(request):
     return render(
         request,
         "dashboard/products/list.html",
         {
             "page_title": "Products",
-            "products": paginate(request, queryset),
+            "products": paginate(request, filtered_products(request)),
             "categories": Category.objects.all(),
             "collections": Collection.objects.all(),
-            "q": q,
+            "q": request.GET.get("q", "").strip(),
+            # Carry the active filters onto the export link.
+            "filter_query": request.GET.urlencode(),
+        },
+    )
+
+
+@staff_required
+def product_export(request):
+    """Download the catalogue as CSV — the same file `product_import` accepts."""
+    stamp = timezone.now().strftime("%Y%m%d-%H%M")
+    response = HttpResponse(
+        catalog_csv.export_products(filtered_products(request)),
+        content_type="text/csv; charset=utf-8",
+    )
+    response["Content-Disposition"] = f'attachment; filename="products-{stamp}.csv"'
+    return response
+
+
+def _flash_import(request, report):
+    if report.ok:
+        messages.success(request, report.summary())
+    else:
+        messages.error(
+            request, f"Nothing was changed — {len(report.errors)} problem(s) found."
+        )
+
+
+# Guard so a huge upload can't bloat the session; above this, the user re-uploads.
+MAX_PENDING_CSV = 2_000_000
+
+
+@staff_required
+def product_import(request):
+    """Upload an edited CSV to update products in bulk.
+
+    A "Preview" stashes the uploaded file in the session, so the very same file
+    can be applied afterwards with one click ("Apply these changes") — no need to
+    re-upload it.
+    """
+    report = None
+    if request.method == "POST":
+        if request.POST.get("apply_pending"):
+            # Apply the file that was just previewed, without a re-upload.
+            pending = request.session.get("pending_csv")
+            if not pending:
+                messages.error(
+                    request, "That preview has expired — please upload the file again."
+                )
+            else:
+                report = catalog_csv.import_products(
+                    io.BytesIO(pending.encode("utf-8")), dry_run=False
+                )
+                request.session.pop("pending_csv", None)
+                _flash_import(request, report)
+        else:
+            upload = request.FILES.get("file")
+            if upload is None:
+                messages.error(request, "Choose a CSV file to upload.")
+            else:
+                dry_run = bool(request.POST.get("dry_run"))
+                raw = upload.read()
+                report = catalog_csv.import_products(io.BytesIO(raw), dry_run=dry_run)
+                _flash_import(request, report)
+                # Keep a good preview around so it can be applied without re-upload.
+                if dry_run and report.ok and report.changes and len(raw) <= MAX_PENDING_CSV:
+                    try:
+                        request.session["pending_csv"] = raw.decode("utf-8-sig")
+                    except UnicodeDecodeError:
+                        request.session["pending_csv"] = raw.decode("cp1252", errors="replace")
+                else:
+                    request.session.pop("pending_csv", None)
+
+    can_apply_pending = bool(
+        report is not None
+        and report.dry_run
+        and report.ok
+        and request.session.get("pending_csv")
+    )
+    return render(
+        request,
+        "dashboard/products/import.html",
+        {
+            "page_title": "Import products",
+            "report": report,
+            "can_apply_pending": can_apply_pending,
+            "columns": catalog_csv.COLUMNS,
         },
     )
 
@@ -491,9 +583,17 @@ def inventory(request):
             | Q(sku__icontains=q)
             | Q(colour__name__icontains=q)
         )
-    if request.GET.get("low") == "1":
+    # Single stock filter (like the orders/returns status filter). Older links
+    # still use ?low=1 / ?out=1 (dashboard home), so map those onto it.
+    stock = request.GET.get("stock", "")
+    if not stock:
+        if request.GET.get("low") == "1":
+            stock = "low"
+        elif request.GET.get("out") == "1":
+            stock = "out"
+    if stock == "low":
         queryset = queryset.filter(stock_quantity__lte=LOW_STOCK)
-    if request.GET.get("out") == "1":
+    elif stock == "out":
         queryset = queryset.filter(stock_quantity=0)
 
     return render(
@@ -503,6 +603,7 @@ def inventory(request):
             "page_title": "Inventory",
             "variants": paginate(request, queryset, per_page=50),
             "q": q,
+            "current_stock": stock,
             "total_units": ProductVariant.objects.aggregate(t=Sum("stock_quantity"))["t"] or 0,
             "low_count": ProductVariant.objects.filter(stock_quantity__lte=LOW_STOCK).count(),
             "out_count": ProductVariant.objects.filter(stock_quantity=0).count(),
@@ -513,36 +614,55 @@ def inventory(request):
 @staff_required
 @require_POST
 def inventory_bulk_save(request):
-    """Bulk stock update from the inventory grid."""
-    updated = 0
+    """Bulk stock adjustment from the inventory grid.
+
+    The number entered against a SKU is *added* to its current stock — it's a
+    stock receipt, not a new absolute level — so an untouched (blank) box changes
+    nothing. A negative number writes stock off; stock never drops below zero.
+    """
+    adjusted = 0
     with transaction.atomic():
         for key, value in request.POST.items():
-            if not key.startswith("stock_"):
+            if not key.startswith("add_"):
+                continue
+            raw = (value or "").strip()
+            if not raw:
                 continue
             try:
                 variant_id = int(key.split("_", 1)[1])
-                quantity = max(int(value), 0)
+                delta = int(raw)
             except (TypeError, ValueError):
                 continue
-            if ProductVariant.objects.filter(pk=variant_id).exclude(
-                stock_quantity=quantity
-            ).update(stock_quantity=quantity, updated_at=timezone.now()):
-                updated += 1
-    messages.success(request, f"{updated} variant(s) updated.")
+            if delta == 0:
+                continue
+            variant = ProductVariant.objects.filter(pk=variant_id).first()
+            if variant is None:
+                continue
+            variant.stock_quantity = max(variant.stock_quantity + delta, 0)
+            variant.save(update_fields=["stock_quantity", "updated_at"])
+            adjusted += 1
+    messages.success(request, f"{adjusted} SKU(s) adjusted.")
     return redirect(request.META.get("HTTP_REFERER") or "dashboard:inventory")
 
 
 @staff_required
 @require_POST
 def inventory_quick_update(request, pk):
-    """HTMX inline stock edit."""
+    """Inline stock adjustment for one SKU — ADDS the entered amount to current
+    stock (a receipt), never below zero. Answers HTMX with the updated badge, or
+    redirects back for a plain form post."""
     variant = get_object_or_404(ProductVariant, pk=pk)
     try:
-        variant.stock_quantity = max(int(request.POST.get("stock_quantity", 0)), 0)
+        delta = int((request.POST.get("add") or "0").strip() or "0")
     except (TypeError, ValueError):
-        pass
-    variant.save(update_fields=["stock_quantity", "updated_at"])
-    return render(request, "dashboard/inventory/_row_stock.html", {"variant": variant})
+        delta = 0
+    if delta:
+        variant.stock_quantity = max(variant.stock_quantity + delta, 0)
+        variant.save(update_fields=["stock_quantity", "updated_at"])
+    if request.headers.get("HX-Request"):
+        return render(request, "dashboard/inventory/_row_stock.html", {"variant": variant})
+    messages.success(request, f"{variant.sku}: stock is now {variant.stock_quantity}.")
+    return redirect(request.META.get("HTTP_REFERER") or "dashboard:inventory")
 
 
 # -------------------------------------------------------------------- taxonomy

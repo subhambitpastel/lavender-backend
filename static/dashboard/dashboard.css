@@ -488,3 +488,35 @@ a.kpi:hover { border-color: var(--lavender-soft); box-shadow: 0 3px 12px rgba(0,
   .content { padding-left: 16px; padding-right: 16px; }
   .topbar, .flashes { padding-left: 16px; padding-right: 16px; }
 }
+
+/* ---------------------------------------------- JSON row editors (Site settings) */
+.jed { display: flex; flex-direction: column; gap: 10px; }
+.jed__list, .jed__cols { display: flex; flex-direction: column; gap: 8px; }
+.jed__row {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 7px 8px;
+}
+.jed__row.is-dragging, .jed__card.is-dragging { opacity: .45; }
+.jed__handle {
+  cursor: grab; color: var(--muted); font-size: 13px; line-height: 1;
+  padding: 4px 5px; user-select: none; flex: none; border-radius: 3px;
+}
+.jed__handle:hover { background: var(--surface-2); color: var(--text); }
+.jed__handle:active { cursor: grabbing; }
+.jed__input { flex: 1 1 120px; min-width: 0; }
+.jed__icon { flex: 0 0 130px; }
+.jed__x {
+  flex: none; width: 26px; height: 26px; padding: 0; border: 1px solid var(--line);
+  background: var(--surface); color: var(--muted); border-radius: 3px; cursor: pointer;
+  font-size: 17px; line-height: 1;
+}
+.jed__x:hover { border-color: var(--sale); color: var(--sale); }
+.jed__card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 12px; display: flex; flex-direction: column; gap: 8px;
+}
+.jed__cardhead { display: flex; align-items: center; gap: 8px; }
+.jed__answer { width: 100%; resize: vertical; }
+.jed__col .jed__list { padding-left: 22px; }
+.jed__add { align-self: flex-start; }
+.jed__toggle { align-self: flex-end; font-size: 12px; }

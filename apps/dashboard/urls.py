@@ -11,6 +11,8 @@ urlpatterns = [
 
     # products
     path("products/", views.product_list, name="product_list"),
+    path("products/export/", views.product_export, name="product_export"),
+    path("products/import/", views.product_import, name="product_import"),
     path("products/new/", views.product_form, name="product_create"),
     path("products/<int:pk>/edit/", views.product_form, name="product_edit"),
     path("products/<int:pk>/delete/", views.product_delete, name="product_delete"),
