@@ -334,6 +334,12 @@ class TestGuestAccounts:
         user = get_user_model().objects.get(email__iexact="shopper@example.com")
         assert not user.has_usable_password()  # guest account
         assert Order.objects.get().user_id == user.pk
+        # Checkout details are copied onto the profile so "finish your account"
+        # doesn't re-ask them.
+        assert user.phone == "07700 900000"
+        assert user.location == "London"
+        assert user.postcode == "SW11 5RW"
+        assert user.country == "GB"
 
     def test_complete_guest_account_signs_in(self, api, variant, checkout_payload):
         from django.contrib.auth import get_user_model
@@ -356,6 +362,11 @@ class TestGuestAccounts:
         )
         assert res.status_code == 201
         assert res.data["access"] and res.data["refresh"]
+        # The signed-in user returned to the client already carries the phone +
+        # address from checkout, so "complete your profile" shows them prefilled.
+        assert res.data["user"]["phone"] == "07700 900000"
+        assert res.data["user"]["location"] == "London"
+        assert res.data["user"]["postcode"] == "SW11 5RW"
         user = get_user_model().objects.get(email__iexact="shopper@example.com")
         assert user.has_usable_password()  # now a real account
         assert user.first_name == "Test"  # name captured after the order

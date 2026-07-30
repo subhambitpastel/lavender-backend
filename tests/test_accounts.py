@@ -157,6 +157,105 @@ class TestCartMerge:
 
 
 @pytest.mark.django_db
+class TestGuestAccountSetup:
+    """A guest who checked out (passwordless account) finishing sign-up via login."""
+
+    GUEST_EMAIL = "guest-checkout@example.com"
+
+    def _make_guest(self):
+        # password=None → an unusable password, i.e. the passwordless guest account
+        # place_order() creates at checkout.
+        return factories.UserFactory(email=self.GUEST_EMAIL, password=None)
+
+    def setup_payload(self, **overrides):
+        data = {
+            "email": self.GUEST_EMAIL,
+            "password": "a-strong-passphrase-42",
+            "first_name": "Guest",
+            "last_name": "Shopper",
+            "phone": "+44 7911 123456",
+            "location": "London",
+            "postcode": "SW1A 1AA",
+            "country": "GB",
+        }
+        data.update(overrides)
+        return data
+
+    def test_login_as_a_guest_asks_them_to_finish_setup(self, api):
+        self._make_guest()
+        response = api.post(
+            "/api/v1/auth/login",
+            {"email": self.GUEST_EMAIL, "password": "anything"},
+            format="json",
+        )
+        assert response.status_code == 409
+        assert response.data["code"] == "needs_account"
+        assert response.data["email"] == self.GUEST_EMAIL
+
+    def test_setup_sets_a_password_and_signs_them_in(self, api):
+        guest = self._make_guest()
+        response = api.post("/api/v1/auth/setup", self.setup_payload(), format="json")
+        assert response.status_code == 201
+        assert response.data["access"] and response.data["refresh"]
+        assert response.data["user"]["first_name"] == "Guest"
+        assert response.data["user"]["phone"] == "+447911123456"
+
+        guest.refresh_from_db()
+        assert guest.has_usable_password()
+        assert guest.check_password("a-strong-passphrase-42")
+
+        # And they can now log in normally.
+        login = api.post(
+            "/api/v1/auth/login",
+            {"email": self.GUEST_EMAIL, "password": "a-strong-passphrase-42"},
+            format="json",
+        )
+        assert login.status_code == 200
+
+    def test_setup_for_an_unknown_email_is_rejected(self, api):
+        response = api.post(
+            "/api/v1/auth/setup",
+            self.setup_payload(email="nobody@example.com"),
+            format="json",
+        )
+        assert response.status_code == 400
+        assert response.data["code"] == "no_account"
+
+    def test_setup_cannot_hijack_a_real_account(self, api, user):
+        # `user` already has a usable password — setup must refuse.
+        response = api.post(
+            "/api/v1/auth/setup",
+            self.setup_payload(email=user.email),
+            format="json",
+        )
+        assert response.status_code == 409
+        assert response.data["code"] == "account_exists"
+
+    def test_setup_still_validates_the_profile(self, api):
+        self._make_guest()
+        response = api.post(
+            "/api/v1/auth/setup", self.setup_payload(country="ZZ"), format="json"
+        )
+        assert response.status_code == 400
+        assert "country" in response.data
+
+    def test_setup_folds_in_a_guest_cart(self, api, variant):
+        self._make_guest()
+        guest_cart = api.post(
+            "/api/v1/cart/items/", {"variant_id": variant.pk, "quantity": 3}, format="json"
+        )
+        token = guest_cart.data["token"]
+        api.post(
+            "/api/v1/auth/setup",
+            self.setup_payload(),
+            format="json",
+            HTTP_X_CART_TOKEN=str(token),
+        )
+        cart = Cart.objects.get(user__email=self.GUEST_EMAIL)
+        assert cart.items.get().quantity == 3
+
+
+@pytest.mark.django_db
 class TestAddresses:
     def test_addresses_are_scoped_to_the_user(self, auth_api, user):
         payload = {

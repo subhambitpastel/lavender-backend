@@ -141,6 +141,45 @@ class CompleteAccountSerializer(serializers.Serializer):
         return attrs
 
 
+class AccountSetupSerializer(serializers.ModelSerializer):
+    """Finish a passwordless guest account from the login flow — the same fields
+    as sign-up, but the account already exists (keyed by email), so the email
+    uniqueness check is dropped. The view enforces the account is still a guest.
+    """
+
+    password = serializers.CharField(write_only=True, validators=[validate_password])
+    password_confirm = serializers.CharField(write_only=True, required=False)
+    # Explicit (no model regex) so libphonenumber in validate_phone() is the sole
+    # authority and the stored value is canonical E.164 — same as sign-up.
+    phone = serializers.CharField(required=True, allow_blank=False, validators=[])
+
+    class Meta:
+        model = User
+        fields = ("email", "password", "password_confirm", *PROFILE_FIELDS, "marketing_opt_in")
+        extra_kwargs = {
+            # The account already exists — don't reject the email as a duplicate.
+            "email": {"validators": []},
+            # phone is declared above, so it's excluded here.
+            **{
+                name: {"required": True, "allow_blank": False}
+                for name in PROFILE_FIELDS
+                if name != "phone"
+            },
+        }
+
+    def validate_country(self, value):
+        return validate_country(value)
+
+    def validate_phone(self, value):
+        return validate_phone_number(value)
+
+    def validate(self, attrs):
+        confirm = attrs.pop("password_confirm", None)
+        if confirm is not None and confirm != attrs["password"]:
+            raise serializers.ValidationError({"password_confirm": "Passwords do not match."})
+        return attrs
+
+
 class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
     """Accept ``email`` instead of ``username`` and return the user alongside tokens."""
 

@@ -40,14 +40,17 @@ def shipping_cost(subtotal: Decimal, method: str) -> Decimal:
     return money(settings.STANDARD_SHIPPING_FEE)
 
 
-def _ensure_guest_user(email, phone=""):
+def _ensure_guest_user(email, phone="", location="", postcode="", country=""):
     """Return an account to attribute a guest order to.
 
     Creates a passwordless "guest" account for a new email so the order has a
     home and the shopper can finish signing up later (name + password on the
-    confirmation page). If the email already has a *real* (password-set) account,
-    we never silently attach — return None and leave the order a pure guest order
-    (they can log in and claim it by lookup).
+    confirmation page). The phone and address given at checkout are copied onto
+    the profile so "finish your account" never re-asks details already provided.
+
+    If the email already has a *real* (password-set) account, we never silently
+    attach — return None and leave the order a pure guest order (they can log in
+    and claim it by lookup).
     """
     from django.contrib.auth import get_user_model
 
@@ -56,11 +59,24 @@ def _ensure_guest_user(email, phone=""):
     User = get_user_model()
     existing = User.objects.filter(email__iexact=email).first()
     if existing:
-        return existing if not existing.has_usable_password() else None
+        if existing.has_usable_password():
+            return None
+        # Backfill any details this checkout supplied that the guest still lacks.
+        filled = []
+        for field, value in (("phone", phone), ("location", location), ("postcode", postcode)):
+            if value and not getattr(existing, field):
+                setattr(existing, field, value)
+                filled.append(field)
+        if filled:
+            existing.save(update_fields=filled)
+        return existing
     return User.objects.create_user(
         email=email,
         password=None,  # unusable password → a "guest" account until completed
         phone=phone or "",
+        location=location or "",
+        postcode=postcode or "",
+        country=country or "GB",
         is_active=True,
     )
 
@@ -160,7 +176,13 @@ def place_order(*, cart, data, user=None, request=None) -> Order:
     order_user = (
         user
         if user and user.is_authenticated
-        else _ensure_guest_user(buyer_email, phone=contact.get("phone", ""))
+        else _ensure_guest_user(
+            buyer_email,
+            phone=contact.get("phone", ""),
+            location=shipping_address.get("city", ""),
+            postcode=shipping_address.get("postcode", ""),
+            country=shipping_address.get("country", ""),
+        )
     )
 
     order = Order.objects.create(

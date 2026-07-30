@@ -16,6 +16,7 @@ from apps.cart.utils import merge_guest_cart
 
 from .models import Address
 from .serializers import (
+    AccountSetupSerializer,
     AddressSerializer,
     CompleteAccountSerializer,
     EmailTokenObtainPairSerializer,
@@ -36,11 +37,22 @@ class LoginView(TokenObtainPairView):
     permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
+        email = (request.data.get("email") or "").strip()
+        user = User.objects.filter(email__iexact=email).first()
+        # A guest who checked out has a passwordless account. Rather than a plain
+        # "not recognised", send them to finish setting it up.
+        if user is not None and not user.has_usable_password():
+            return Response(
+                {
+                    "code": "needs_account",
+                    "email": user.email,
+                    "detail": "You've ordered as a guest — finish setting up your account to sign in.",
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
         response = super().post(request, *args, **kwargs)
-        if response.status_code == 200:
-            user = User.objects.filter(email__iexact=request.data.get("email", "")).first()
-            if user:
-                merge_guest_cart(request, user)
+        if response.status_code == 200 and user:
+            merge_guest_cart(request, user)
         return response
 
 
@@ -116,6 +128,55 @@ class CompleteAccountView(APIView):
             address["last_name"] = data["last_name"]
             order.shipping_address = address
             order.save(update_fields=["shipping_address", "updated_at"])
+
+        merge_guest_cart(request, user)
+        refresh = RefreshToken.for_user(user)
+        return Response(
+            {
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+                "user": UserSerializer(user, context={"request": request}).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class AccountSetupView(APIView):
+    """Finish a passwordless guest account from the LOGIN flow — set a password
+    and profile, then sign in.
+
+    NOTE (security): this is email-only by product decision — there is no
+    order-number or email-verification proof, so anyone who knows a guest's email
+    can claim their account (and its order history / address). Add verification
+    to harden.
+    """
+
+    permission_classes = [AllowAny]
+
+    @extend_schema(request=AccountSetupSerializer, responses=UserSerializer)
+    def post(self, request):
+        serializer = AccountSetupSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        user = User.objects.filter(email__iexact=data["email"]).first()
+        if user is None:
+            return Response(
+                {"detail": "There's no guest account for that email — please sign up.", "code": "no_account"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if user.has_usable_password():
+            return Response(
+                {"detail": "You already have an account — please sign in.", "code": "account_exists"},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        user.set_password(data["password"])
+        for field in ("first_name", "last_name", "phone", "location", "postcode", "country"):
+            setattr(user, field, data[field])
+        user.marketing_opt_in = data.get("marketing_opt_in", False)
+        user.is_active = True
+        user.save()
 
         merge_guest_cart(request, user)
         refresh = RefreshToken.for_user(user)

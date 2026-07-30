@@ -27,6 +27,7 @@ router.register("orders", order_views.OrderViewSet, basename="order")
 auth_patterns = [
     path("register", account_views.RegisterView.as_view(), name="auth-register"),
     path("complete", account_views.CompleteAccountView.as_view(), name="auth-complete"),
+    path("setup", account_views.AccountSetupView.as_view(), name="auth-setup"),
     path("login", account_views.LoginView.as_view(), name="auth-login"),
     path("refresh", TokenRefreshView.as_view(), name="auth-refresh"),
     path("verify", TokenVerifyView.as_view(), name="auth-verify"),
