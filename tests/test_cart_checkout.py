@@ -396,3 +396,45 @@ class TestGuestAccounts:
         assert res.status_code == 201
         assert res.data["account_claimable"] is False
         assert Order.objects.get().user_id is None
+
+
+@pytest.mark.django_db
+class TestCustomerCancel:
+    def _place(self, api, user, variant, checkout_payload, qty=2):
+        api.force_authenticate(user)
+        token = add_to_cart(api, variant, qty).data["token"]
+        return api.post(
+            "/api/v1/checkout/", checkout_payload, format="json", HTTP_X_CART_TOKEN=str(token)
+        ).data["number"]
+
+    def test_customer_can_cancel_before_shipping(self, api, user, variant, checkout_payload):
+        start = variant.stock_quantity
+        number = self._place(api, user, variant, checkout_payload, qty=2)
+        variant.refresh_from_db()
+        assert variant.stock_quantity == start - 2  # decremented at checkout
+
+        res = api.post(f"/api/v1/orders/{number}/cancel/")
+        assert res.status_code == 200
+        order = Order.objects.get(number=number)
+        assert order.status in (Order.Status.CANCELLED, Order.Status.REFUNDED)
+        variant.refresh_from_db()
+        assert variant.stock_quantity == start  # restocked
+
+    def test_customer_cannot_cancel_after_shipping(self, api, user, variant, checkout_payload):
+        number = self._place(api, user, variant, checkout_payload, qty=1)
+        order = Order.objects.get(number=number)
+        order.status = Order.Status.SHIPPED
+        order.save(update_fields=["status"])
+
+        res = api.post(f"/api/v1/orders/{number}/cancel/")
+        assert res.status_code == 400
+        assert res.data["code"] == "not_cancellable"
+        assert Order.objects.get(number=number).status == Order.Status.SHIPPED  # unchanged
+
+    def test_cancel_flag_flips_off_once_shipped(self, api, user, variant, checkout_payload):
+        number = self._place(api, user, variant, checkout_payload, qty=1)
+        assert api.get(f"/api/v1/orders/{number}/").data["customer_cancellable"] is True
+        order = Order.objects.get(number=number)
+        order.status = Order.Status.SHIPPED
+        order.save(update_fields=["status"])
+        assert api.get(f"/api/v1/orders/{number}/").data["customer_cancellable"] is False

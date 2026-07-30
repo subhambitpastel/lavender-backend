@@ -257,29 +257,65 @@ class OrderStatusForm(StyledFormMixin, forms.ModelForm):
         fields = ("payment_status", "tracking_number", "staff_note")
 
 
+def suggest_discount_codes(base, *, limit=5, exclude_pk=None):
+    """Free alternative codes near ``base``, for when the entered one is taken.
+
+    Numeric bumps first (SUMMER2, SUMMER3…) plus a few word variants, each
+    checked against every code already in use so every suggestion is guaranteed
+    available for the admin to pick.
+    """
+    base = (base or "").strip().upper()
+    if not base:
+        return []
+    taken = set(Discount.objects.values_list("code", flat=True))
+    if exclude_pk is not None:
+        own = Discount.objects.filter(pk=exclude_pk).values_list("code", flat=True).first()
+        taken.discard(own)
+    seeds = [f"{base}2", f"{base}NEW", f"{base}3", f"{base}SAVE", f"{base}25", f"{base}PLUS"]
+    seeds += [f"{base}{n}" for n in range(4, 60)]
+    out = []
+    for candidate in seeds:
+        if len(candidate) <= 40 and candidate not in taken and candidate not in out:
+            out.append(candidate)
+        if len(out) >= limit:
+            break
+    return out
+
+
 class DiscountForm(StyledFormMixin, forms.ModelForm):
+    # Populated by clean_code when the entered code clashes — the template offers
+    # these as one-tap alternatives.
+    code_suggestions = []
+
     class Meta:
         model = Discount
-        fields = (
-            "code",
-            "description",
-            "kind",
-            "value",
-            "min_spend",
-            "is_active",
-            "starts_at",
-            "ends_at",
-            "usage_limit",
-        )
-        widgets = {
-            "starts_at": forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
-            "ends_at": forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
-        }
+        # Just the essentials: a code always applies (active, no minimum spend, no
+        # start/end window, no usage cap) until it's deleted.
+        fields = ("code", "description", "kind", "value")
+        labels = {"code": "Title"}
+        help_texts = {"code": "The code customers type at checkout, e.g. SUMMER10."}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for name in ("starts_at", "ends_at"):
-            self.fields[name].input_formats = ["%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S"]
+        # All four fields are required now — description is optional on the model,
+        # so force it here.
+        self.fields["description"].required = True
+        self.code_suggestions = []
+
+    def clean_code(self):
+        code = (self.cleaned_data.get("code") or "").strip().upper()
+        clash = Discount.objects.filter(code=code)
+        if self.instance and self.instance.pk:
+            clash = clash.exclude(pk=self.instance.pk)
+        if clash.exists():
+            self.code_suggestions = suggest_discount_codes(
+                code, exclude_pk=self.instance.pk if self.instance else None
+            )
+            raise forms.ValidationError(
+                f"The code “{code}” already exists — choose another, "
+                "or pick one of the suggestions below."
+            )
+        return code
 
 
 # -------------------------------------------------------------------- content

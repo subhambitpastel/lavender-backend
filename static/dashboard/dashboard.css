@@ -271,6 +271,17 @@ a.kpi:hover { border-color: var(--lavender-soft); box-shadow: 0 3px 12px rgba(0,
 .field__hint { display: block; font-size: 12px; color: var(--muted); margin-top: 4px; }
 .field__error { display: block; font-size: 12.5px; color: var(--sale); margin-top: 4px; }
 
+/* Suggested-title chips shown under the code field when the entered one is taken. */
+.suggest { margin-top: 8px; }
+.suggest__chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.chip {
+  font-family: var(--mono, var(--sans)); font-size: 12.5px; letter-spacing: .4px;
+  padding: 5px 11px; cursor: pointer; border-radius: var(--radius);
+  border: 1px solid var(--lavender-soft); color: var(--lavender-deep); background: var(--lavender-tint);
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+.chip:hover { background: var(--lavender-deep); border-color: var(--lavender-deep); color: var(--white); }
+
 .input {
   width: 100%; padding: 11px 12px; font-family: var(--sans); font-size: 14px; color: var(--text);
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);

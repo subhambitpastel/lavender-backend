@@ -208,12 +208,22 @@ class Order(TimeStamped):
 
     @property
     def is_cancellable(self):
-        # Any pre-delivery lifecycle stage can still be cancelled (and restocked).
+        # Any pre-delivery lifecycle stage can still be cancelled (and restocked)
+        # by staff — including after it has shipped (a recall).
         return self.status in {
             self.Status.DRAFT,
             self.Status.CONFIRMED,
             self.Status.FULFILLMENT,
             self.Status.SHIPPED,
+        }
+
+    @property
+    def customer_cancellable(self):
+        """A shopper may cancel their own order only until it ships."""
+        return self.status in {
+            self.Status.DRAFT,
+            self.Status.CONFIRMED,
+            self.Status.FULFILLMENT,
         }
 
     @property

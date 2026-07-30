@@ -458,6 +458,18 @@ function bindStockTotals() {
   });
 }
 
+/* Promo-code suggestions: tapping a suggested title drops it into the code
+   field (which sits in the same .field wrapper) so the admin can save at once. */
+document.addEventListener("click", function (event) {
+  const chip = event.target.closest("[data-fill-code]");
+  if (!chip) return;
+  const field = chip.closest(".field");
+  const input = field && field.querySelector("input, select, textarea");
+  if (!input) return;
+  input.value = chip.dataset.fillCode;
+  input.focus();
+});
+
 /* Confirm destructive actions. Honour the clicked button's data-confirm first
    (so one form can have distinct approve/reject prompts), then the form's. */
 document.addEventListener("submit", function (event) {

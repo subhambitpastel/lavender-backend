@@ -20,7 +20,7 @@ from .serializers import (
     ReturnCreateSerializer,
     ReturnSerializer,
 )
-from .services import CheckoutError, ReturnError, place_order, request_return
+from .services import CheckoutError, ReturnError, cancel_order, place_order, request_return
 
 
 class DiscountPreviewView(APIView):
@@ -205,6 +205,23 @@ class OrderViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.Ge
         except ReturnError as exc:
             return Response({"detail": exc.message, "code": exc.code}, status=status.HTTP_400_BAD_REQUEST)
         return Response(ReturnSerializer(ret).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"], url_path="cancel")
+    def cancel(self, request, number=None):
+        """Let the shopper cancel their own order — only before it ships."""
+        order = self.get_object()
+        if not order.customer_cancellable:
+            return Response(
+                {
+                    "detail": "This order can no longer be cancelled — it has already shipped.",
+                    "code": "not_cancellable",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        # A paid order is refunded; an unpaid (draft) one is simply cancelled.
+        refund = order.payment_status == Order.PaymentStatus.PAID
+        cancel_order(order, refund=refund, actor=request.user.email)
+        return Response(self.get_serializer(order).data)
 
 
 class OrderLookupView(APIView):

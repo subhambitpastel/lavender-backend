@@ -123,6 +123,7 @@ class OrderSerializer(serializers.ModelSerializer):
     )
     item_count = serializers.IntegerField(read_only=True)
     is_returnable = serializers.BooleanField(read_only=True)
+    customer_cancellable = serializers.BooleanField(read_only=True)
     return_window_ends = serializers.DateTimeField(read_only=True)
     returns = ReturnSerializer(many=True, read_only=True)
     # True when the order belongs to a passwordless guest account the shopper can
@@ -159,6 +160,7 @@ class OrderSerializer(serializers.ModelSerializer):
             "items",
             "item_count",
             "is_returnable",
+            "customer_cancellable",
             "return_window_ends",
             "returns",
             "placed_at",

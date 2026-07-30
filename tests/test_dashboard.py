@@ -565,3 +565,61 @@ class TestContentScreens:
         assert response.status_code == 200
         assert response["Content-Type"] == "text/csv"
         assert b"a@example.com" in response.content
+
+
+@pytest.mark.django_db
+class TestDiscountForm:
+    """The trimmed promo-code editor: only title/description/kind/value, with
+    one-tap alternatives when a title is already taken."""
+
+    URL = "dashboard:discount_list"
+
+    def test_form_only_exposes_the_four_essentials(self, client, staff):
+        client.force_login(staff)
+        html = client.get(reverse(self.URL)).content.decode()
+        for kept in ("id_code", "id_description", "id_kind", "id_value"):
+            assert kept in html
+        for gone in ("id_min_spend", "id_is_active", "id_starts_at", "id_ends_at", "id_usage_limit"):
+            assert gone not in html
+
+    def test_create_needs_only_the_four_fields(self, client, staff):
+        from apps.orders.models import Discount
+
+        client.force_login(staff)
+        response = client.post(
+            reverse(self.URL),
+            {"pk": "", "code": "spring20", "description": "Spring sale", "kind": "percent", "value": "20"},
+        )
+        assert response.status_code == 302
+        code = Discount.objects.get(code="SPRING20")
+        # Everything we dropped falls back to "always applies" defaults.
+        assert code.is_active is True
+        assert code.min_spend is None
+        assert code.starts_at is None and code.ends_at is None
+        assert code.usage_limit is None
+
+    def test_description_is_required(self, client, staff):
+        client.force_login(staff)
+        response = client.post(
+            reverse(self.URL),
+            {"pk": "", "code": "nodesc", "description": "", "kind": "percent", "value": "10"},
+        )
+        assert response.status_code == 200  # re-rendered with the error
+        assert b"This field is required" in response.content
+
+    def test_duplicate_title_is_rejected_with_free_suggestions(self, client, staff):
+        from apps.orders.models import Discount
+
+        Discount.objects.create(code="WELCOME15", description="x", kind="percent", value=15)
+        client.force_login(staff)
+        response = client.post(
+            reverse(self.URL),
+            {"pk": "", "code": "welcome15", "description": "Dupe", "kind": "percent", "value": "10"},
+        )
+        assert response.status_code == 200
+        assert b"already exists" in response.content
+        chips = re.findall(rb'data-fill-code="([^"]+)"', response.content)
+        assert chips, "expected alternative-title suggestions"
+        # Every suggestion must be a genuinely available code.
+        for chip in chips:
+            assert not Discount.objects.filter(code=chip.decode()).exists()
