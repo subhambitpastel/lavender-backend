@@ -167,6 +167,20 @@ class TestCheckout:
         assert float(response.data["shipping_total"]) == 3.95
         assert float(response.data["grand_total"]) == 23.95
 
+    def test_express_is_charged_even_over_the_free_shipping_threshold(
+        self, api, variant, checkout_payload
+    ):
+        # A £100 basket clears the £50 threshold, so standard delivery would be
+        # free — but express is a paid upgrade and must still be charged.
+        checkout_payload["shipping_method"] = "express"
+        token = add_to_cart(api, variant, 1).data["token"]
+        response = api.post(
+            "/api/v1/checkout/", checkout_payload, format="json", HTTP_X_CART_TOKEN=str(token)
+        )
+        assert response.status_code == 201, response.data
+        assert float(response.data["shipping_total"]) == 6.95
+        assert float(response.data["grand_total"]) == 106.95
+
     def test_the_cart_is_emptied(self, api, variant, checkout_payload):
         token = add_to_cart(api, variant, 1).data["token"]
         api.post("/api/v1/checkout/", checkout_payload, format="json", HTTP_X_CART_TOKEN=str(token))

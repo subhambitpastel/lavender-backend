@@ -33,10 +33,13 @@ class ReturnError(Exception):
 
 
 def shipping_cost(subtotal: Decimal, method: str) -> Decimal:
-    if subtotal >= Decimal(settings.FREE_SHIPPING_THRESHOLD):
-        return Decimal("0.00")
+    # Express is a paid upgrade: it's always charged, even when the order clears
+    # the free-shipping threshold. Only *standard* delivery is complimentary above
+    # it — otherwise the express fee silently vanishes on larger baskets.
     if method == Order.ShippingMethod.EXPRESS:
         return money(settings.EXPRESS_SHIPPING_FEE)
+    if subtotal >= Decimal(settings.FREE_SHIPPING_THRESHOLD):
+        return Decimal("0.00")
     return money(settings.STANDARD_SHIPPING_FEE)
 
 
