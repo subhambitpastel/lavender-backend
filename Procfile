@@ -1,1 +1,1 @@
-web: python manage.py migrate --noinput && python manage.py collectstatic --noinput && (python manage.py apply_seed_policy --mode 1 || echo "seed skipped") && gunicorn config.wsgi --bind 0.0.0.0:$PORT --workers 3
+web: sleep 3 && (python manage.py migrate --noinput || (echo "db not ready - retrying in 5s" && sleep 5 && python manage.py migrate --noinput)) && python manage.py collectstatic --noinput && (python manage.py apply_seed_policy --mode 1 || echo "seed skipped") && gunicorn config.wsgi --bind 0.0.0.0:$PORT --workers 3
