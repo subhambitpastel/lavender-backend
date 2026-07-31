@@ -20,7 +20,14 @@ from .serializers import (
     ReturnCreateSerializer,
     ReturnSerializer,
 )
-from .services import CheckoutError, ReturnError, cancel_order, place_order, request_return
+from .services import (
+    CheckoutError,
+    ReturnError,
+    cancel_order,
+    claim_guest_orders,
+    place_order,
+    request_return,
+)
 
 
 class DiscountPreviewView(APIView):
@@ -162,6 +169,9 @@ class OrderViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.Ge
     filter_backends = []
 
     def get_queryset(self):
+        # Adopt any guest orders placed with this email before filtering, so an
+        # already-signed-in shopper sees them without having to log in again.
+        claim_guest_orders(self.request.user)
         return Order.objects.filter(user=self.request.user).prefetch_related("items")
 
     def get_serializer_context(self):

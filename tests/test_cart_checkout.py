@@ -355,6 +355,50 @@ class TestGuestAccounts:
         assert user.postcode == "SW11 5RW"
         assert user.country == "GB"
 
+    def test_guest_order_with_a_real_accounts_email_is_claimed_on_login(
+        self, api, user, variant, checkout_payload
+    ):
+        # A guest types the email of an existing real account: the order must NOT
+        # silently attach (anyone could inject orders into someone else's account
+        # by typing their email)…
+        token = add_to_cart(api, variant, 1).data["token"]
+        res = api.post(
+            "/api/v1/checkout/", checkout_payload, format="json", HTTP_X_CART_TOKEN=str(token)
+        )
+        assert res.status_code == 201
+        order = Order.objects.get()
+        assert order.user_id is None
+
+        # …but logging in proves the email is theirs, so the order is claimed.
+        res = api.post(
+            "/api/v1/auth/login",
+            {"email": "shopper@example.com", "password": "testpass123"},
+            format="json",
+        )
+        assert res.status_code == 200
+        order.refresh_from_db()
+        assert order.user_id == user.pk
+
+    def test_signed_in_shopper_sees_guest_orders_in_history_without_relogging(
+        self, api, user, variant, checkout_payload
+    ):
+        from rest_framework_simplejwt.tokens import AccessToken
+
+        # Guest checkout with the real account's email while its owner already
+        # holds a valid session (no fresh login afterwards).
+        token = add_to_cart(api, variant, 1).data["token"]
+        number = api.post(
+            "/api/v1/checkout/", checkout_payload, format="json", HTTP_X_CART_TOKEN=str(token)
+        ).data["number"]
+        assert Order.objects.get(number=number).user_id is None
+
+        # Opening "My Orders" with the existing session claims and shows it.
+        api.credentials(HTTP_AUTHORIZATION=f"Bearer {AccessToken.for_user(user)}")
+        res = api.get("/api/v1/orders/")
+        assert res.status_code == 200
+        assert number in [order["number"] for order in res.data["results"]]
+        assert Order.objects.get(number=number).user_id == user.pk
+
     def test_complete_guest_account_signs_in(self, api, variant, checkout_payload):
         from django.contrib.auth import get_user_model
 

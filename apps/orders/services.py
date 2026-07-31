@@ -84,6 +84,19 @@ def _ensure_guest_user(email, phone="", location="", postcode="", country=""):
     )
 
 
+def claim_guest_orders(user) -> int:
+    """Attach ownerless guest orders bearing this user's email to their account.
+
+    A guest checkout with the email of an existing *real* account deliberately
+    leaves ``order.user`` NULL (a stranger typing your email must not inject
+    orders into your history). Logging in IS the proof of email ownership, so
+    the rightful owner claims those orders here. Returns how many were claimed.
+    """
+    if not user or not getattr(user, "is_authenticated", True) or not user.email:
+        return 0
+    return Order.objects.filter(user__isnull=True, email__iexact=user.email).update(user=user)
+
+
 def _image_url(variant, request=None):
     image = variant.colour.primary_image
     if not image:

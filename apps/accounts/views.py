@@ -53,6 +53,11 @@ class LoginView(TokenObtainPairView):
         response = super().post(request, *args, **kwargs)
         if response.status_code == 200 and user:
             merge_guest_cart(request, user)
+            # Signing in proves this email is theirs — attach any orders placed
+            # as a guest with it (left ownerless on purpose at checkout).
+            from apps.orders.services import claim_guest_orders
+
+            claim_guest_orders(user)
         return response
 
 
